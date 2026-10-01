@@ -2,7 +2,9 @@ import SwiftUI
 
 /// Figma: "Start or Join Group". The fork — create, or enter a code.
 struct StartOrJoinView: View {
-    var onBack: () -> Void = {}
+    /// nil when this is where the flow began — a signed-in user with no
+    /// group has no earlier step to go back to.
+    var onBack: (() -> Void)?
     var onCreate: () -> Void = {}
     var onJoined: () -> Void = {}
 

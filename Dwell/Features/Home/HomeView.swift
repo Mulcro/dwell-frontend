@@ -1,55 +1,218 @@
 import SwiftUI
 
-/// Placeholder for the daily loop.
-///
-/// The redesign covers onboarding; Today / Reader / Compose / Feed and the
-/// rest haven't been redrawn yet. The previous versions are in
-/// Archive/LegacyUI and will be rebuilt against the new design system once
-/// those comps land — this stands in so the app has somewhere to arrive.
 struct HomeView: View {
     @Environment(SessionStore.self) private var session
     @Environment(\.dwell) private var t
 
+    @State private var postedNames: [String] = []
+    @State private var showReflect = false
+    @State private var nudging = false
+
     private var group: DwellGroup? { session.group.value ?? nil }
+    private var state: HomeState { HomeState.resolve(session) }
 
     var body: some View {
         ZStack(alignment: .top) {
             SkyBackground(height: 320, fadeFrom: 0.3)
 
-            VStack(alignment: .leading, spacing: 0) {
-                Text(greeting)
-                    .font(.dwellTitle)
-                    .foregroundStyle(t.textPrimary)
-                    .padding(.top, Space.xxl)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(greeting)
+                        .font(.dwellTitle)
+                        .foregroundStyle(t.textPrimary)
+                        .padding(.top, Space.xxl)
 
-                weekStrip.padding(.top, Space.xl)
+                    WeekStrip(days: session.days)
+                        .padding(.top, Space.xl)
 
-                planCard.padding(.top, Space.xl)
-
-                Spacer()
-
-                Text("The daily loop is still being designed. Onboarding is complete and wired to the API layer.")
-                    .font(.dwellCaption)
-                    .foregroundStyle(t.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-
-                SecondaryButton(title: "Sign out") {
-                    Task {
-                        try? await session.api.signOut()
-                        session.finishOnboarding()
-                        await session.bootstrap()
-                    }
+                    body(for: state)
+                        .padding(.top, Space.xl)
                 }
+                .padding(.horizontal, Space.gutter)
+                .padding(.bottom, TabBarMetrics.clearance)
             }
-            .padding(.horizontal, Space.gutter)
-            .padding(.bottom, Space.xl)
+            .scrollIndicators(.hidden)
         }
-        .dwellThemed()
+        .task(id: session.currentDay?.id) { await loadPosters() }
+        .refreshable { await session.reload() }
     }
 
-    /// The auth trigger falls back to 'Friend' when a provider sends no name,
-    /// so "Hi, Friend" is possible — drop to something warmer in that case.
+    // MARK: - States
+
+    @ViewBuilder
+    private func body(for state: HomeState) -> some View {
+        switch state {
+        case .readyToReflect:
+            readyCard
+            sealedNotice.padding(.top, Space.lg)
+
+        case let .waitingOnGroup(_, posted, needed):
+            waiting(posted: posted, needed: needed)
+
+        case let .dayOpen(_, posted, total):
+            open(posted: posted, total: total)
+
+        default:
+            // forming / paused / completed / ended / noOpenDay / noGroup all
+            // have a real headline and detail on HomeState; none of them
+            // should offer "Start Reflection".
+            genericCard
+        }
+    }
+
+    /// Day open, nothing posted yet — the plan is the subject.
+    private var readyCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            PlanCover(title: session.plan?.title ?? "Your plan")
+                .frame(height: 210)
+                .clipped()
+
+            VStack(alignment: .leading, spacing: Space.sm) {
+                HStack {
+                    Text(group?.name ?? "Your group")
+                        .font(.dwellBodyMd)
+                        .foregroundStyle(t.textPrimary)
+                    Spacer()
+                    Text(dayLabel)
+                        .font(.dwellBodyMd)
+                        .foregroundStyle(t.accent)
+                }
+
+                Text(session.plan?.title ?? "")
+                    .font(.dwellCardTitleStrong)
+                    .foregroundStyle(t.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: Space.sm) {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 15))
+                        .foregroundStyle(t.textSecondary)
+                    Text("Add to today's reflection")
+                        .font(.dwellBody)
+                        .foregroundStyle(t.textSecondary)
+                }
+                .padding(.top, Space.xs)
+
+                PrimaryButton(title: "Start Reflection", accent: true) {
+                    showReflect = true
+                }
+                .padding(.top, Space.md)
+            }
+            .padding(Space.lg)
+        }
+        .background(t.background)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.xl, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.xl, style: .continuous)
+                .strokeBorder(t.border, lineWidth: 1)
+        )
+    }
+
+    private var sealedNotice: some View {
+        VStack(alignment: .leading, spacing: Space.sm) {
+            Text("Today's reflections are sealed")
+                .font(.dwellBodyMd)
+                .foregroundStyle(t.textPrimary)
+            Text(sealedDetail)
+                .font(.dwellBody)
+                .foregroundStyle(t.textSecondary)
+                .lineSpacing(LineSpacing.body)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Space.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(t.background)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                .strokeBorder(t.border, lineWidth: 1)
+        )
+    }
+
+    /// You posted; the group hasn't cleared the threshold.
+    private func waiting(posted: Int, needed: Int) -> some View {
+        VStack(spacing: Space.lg) {
+            ReflectionCardStack(sealed: true)
+
+            StatusPill(text: "\(posted) of \(session.members.count) in · opens at \(needed)")
+
+            MemberAvatarRow(members: avatarRow)
+
+            Text("Sealed until half the crew is here")
+                .font(.dwellCardTitle)
+                .foregroundStyle(t.textPrimary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            PrimaryButton(title: nudging ? "Nudging…" : "Send the group a gentle nudge",
+                          icon: "bell") {
+                Task { await nudge() }
+            }
+
+            yourReflectionRow
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Threshold cleared — the day is readable.
+    private func open(posted: Int, total: Int) -> some View {
+        VStack(spacing: Space.lg) {
+            ReflectionCardStack(sealed: false)
+
+            Text("Today's reflections are open")
+                .font(.dwellCardTitle)
+                .foregroundStyle(t.textPrimary)
+                .multilineTextAlignment(.center)
+
+            Text(openDetail(posted: posted, total: total))
+                .font(.dwellBody)
+                .foregroundStyle(t.textSecondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(LineSpacing.body)
+                .fixedSize(horizontal: false, vertical: true)
+
+            PrimaryButton(title: "Read reflections", accent: true) { }
+
+            yourReflectionRow
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var genericCard: some View {
+        VStack(alignment: .leading, spacing: Space.sm) {
+            Text(state.headline)
+                .font(.dwellCardTitleStrong)
+                .foregroundStyle(t.textPrimary)
+            Text(state.detail)
+                .font(.dwellBody)
+                .foregroundStyle(t.textSecondary)
+                .lineSpacing(LineSpacing.body)
+                .fixedSize(horizontal: false, vertical: true)
+            if let action = state.action {
+                PrimaryButton(title: action, accent: true) { }
+                    .padding(.top, Space.md)
+            }
+        }
+        .padding(Space.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(t.background)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                .strokeBorder(t.border, lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private var yourReflectionRow: some View {
+        if let mine = session.myReflection {
+            YourReflectionRow(postedAgo: relativeAge(mine.createdAt),
+                              isLate: mine.isLate)
+        }
+    }
+
+    // MARK: - Copy
+
     private var greeting: String {
         guard let name = session.me?.name,
               !name.isEmpty,
@@ -59,116 +222,84 @@ struct HomeView: View {
         return "Hi, \(first)"
     }
 
-    /// The current calendar week, Sunday first, as the design draws it.
+    private var dayLabel: String {
+        guard let day = session.currentDay?.dayIndex else { return "" }
+        return "Day \(day) of \(session.plan?.dayCount ?? day)"
+    }
+
+    private var sealedDetail: String {
+        let posted = session.postedCount
+        let needed = max(session.requiredToUnlock, 1)
+        guard posted > 0 else {
+            return "Nobody's posted yet. It opens once \(needed) have responded — yours could be the first."
+        }
+        return "\(posted) \(posted == 1 ? "friend is" : "friends are") in. It opens once \(needed) have responded. Yours could be the one."
+    }
+
+    private func openDetail(posted: Int, total: Int) -> String {
+        let remaining = max(total - posted, 0)
+        let who = postedNames.isEmpty ? "You're" : "\(listed(postedNames)) are"
+        guard remaining > 0 else { return "\(who) all in for today." }
+        return "\(who) in. \(remaining) more can still add theirs today."
+    }
+
+    private func listed(_ names: [String]) -> String {
+        switch names.count {
+        case 0: return "You"
+        case 1: return "\(names[0]) and you"
+        default: return names.dropLast().joined(separator: ", ") + ", \(names[names.count - 1]) and you"
+        }
+    }
+
+    /// Avatars in stable member order.
     ///
-    /// A cell is filled when a day of the plan actually opened on that date
-    /// and cleared; outlined when it's today; muted otherwise. Nothing here is
-    /// assumed from the plan's day index — a `weekdays` or `custom` rhythm
-    /// simply has no row on the days it skips.
-    private var weekStrip: some View {
-        HStack(spacing: Space.sm) {
-            ForEach(weekDates, id: \.self) { date in
-                let day = dayInstance(on: date)
-                let isToday = calendar.isDateInToday(date)
-                let cleared = day.map { $0.status == .complete || $0.status == .thresholdMet } ?? false
-
-                VStack(spacing: 4) {
-                    Text(letter(for: date))
-                        .font(.dwellSmallMd)
-                        .foregroundStyle(cleared ? t.onInk : (isToday ? t.textPrimary : t.textSecondary))
-                    if day != nil {
-                        Circle()
-                            .fill(cleared ? t.onInk : t.textTertiary)
-                            .frame(width: 4, height: 4)
-                    } else {
-                        Circle().fill(.clear).frame(width: 4, height: 4)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(cleared ? t.ink : t.surfaceRaised)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.md, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
-                        .strokeBorder(isToday && !cleared ? t.ink : .clear, lineWidth: 2)
-                )
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(accessibilityLabel(for: date, day: day, isToday: isToday, cleared: cleared))
-            }
+    /// The tick can only be shown for people we can *prove* posted. Before the
+    /// day unlocks RLS hides everyone else's reflection rows, and
+    /// `participation_count` is a bare number with no identities — so marking
+    /// specific friends as done would be a guess. Only your own tick is real
+    /// until the day opens; the count in the pill carries the rest.
+    private var avatarRow: [(name: String, posted: Bool)] {
+        session.members.map { member in
+            let name = session.memberProfiles[member.userId]?.name ?? "Member"
+            let isMe = member.userId == session.me?.id
+            let posted = isMe
+                ? session.myReflection?.moderationStatus == .approved
+                : postedNames.contains(where: { name.hasPrefix($0) })
+            return (name, posted)
         }
     }
 
-    private var calendar: Calendar {
-        var calendar = Calendar.current
-        calendar.firstWeekday = 1   // Sunday, matching the design's S M T W T F S
-        return calendar
-    }
-
-    /// The seven dates of the week `today` falls in.
-    private var weekDates: [Date] {
-        let today = Date()
-        guard let start = calendar.dateInterval(of: .weekOfYear, for: today)?.start else { return [] }
-        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
-    }
-
-    private func dayInstance(on date: Date) -> DayInstance? {
-        session.days.first { calendar.isDate($0.date, inSameDayAs: date) }
-    }
-
-    private func letter(for date: Date) -> String {
-        let symbols = calendar.veryShortWeekdaySymbols
-        return symbols[calendar.component(.weekday, from: date) - 1]
-    }
-
-    private func accessibilityLabel(for date: Date, day: DayInstance?,
-                                    isToday: Bool, cleared: Bool) -> String {
-        let name = date.formatted(.dateTime.weekday(.wide))
-        if isToday { return "\(name), today\(cleared ? ", complete" : "")" }
-        guard day != nil else { return "\(name), no reading" }
-        return "\(name), \(cleared ? "complete" : "not complete")"
-    }
-
-    private var state: HomeState { HomeState.resolve(session) }
-
-    private var planCard: some View {
-        VStack(alignment: .leading, spacing: Space.sm) {
-            Text(group?.name ?? "Dwell")
-                .font(.dwellCardTitleStrong)
-                .foregroundStyle(t.textPrimary)
-
-            Text(subtitle)
-                .font(.dwellSmall)
-                .foregroundStyle(t.textSecondary)
-
-            Text(state.detail)
-                .font(.dwellBody)
-                .lineSpacing(LineSpacing.body)
-                .foregroundStyle(t.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, Space.xs)
-
-            if let action = state.action {
-                PrimaryButton(title: action) { }
-                    .padding(.top, Space.md)
-            }
+    private func relativeAge(_ date: Date) -> String {
+        let seconds = Date.now.timeIntervalSince(date)
+        if seconds < 3_600 { return "\(max(Int(seconds / 60), 1)) minutes ago" }
+        if seconds < 86_400 {
+            let hours = Int(seconds / 3_600)
+            return "\(hours) hour\(hours == 1 ? "" : "s") ago"
         }
-        .padding(Space.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(t.surface)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
-                .strokeBorder(t.border, lineWidth: 1)
-        )
+        let days = Int(seconds / 86_400)
+        return "\(days) day\(days == 1 ? "" : "s") ago"
     }
 
-    /// "Day 3 · When Life Gets Hard" when there's a day; just the plan when
-    /// there isn't, rather than inventing "Day 1".
-    private var subtitle: String {
-        let plan = session.plan?.title
-        if let day = session.currentDay?.dayIndex, let plan {
-            return "Day \(day) · \(plan)"
+    // MARK: - Data
+
+    /// Who posted — only knowable once the day has unlocked.
+    private func loadPosters() async {
+        guard let day = session.currentDay, day.isUnlocked else {
+            postedNames = []
+            return
         }
-        return plan ?? state.headline
+        let rows = (try? await session.api.reflections(dayInstanceId: day.id)) ?? []
+        postedNames = rows
+            .filter { $0.userId != session.me?.id }
+            .compactMap { session.memberProfiles[$0.userId]?.name.split(separator: " ").first.map(String.init) }
+    }
+
+    private func nudge() async {
+        nudging = true
+        defer { nudging = false }
+        Haptics.tap()
+        // No nudge endpoint exists — the cron writes ai_insights rows. Tracked
+        // in the backend request doc.
+        try? await Task.sleep(for: .milliseconds(600))
     }
 }

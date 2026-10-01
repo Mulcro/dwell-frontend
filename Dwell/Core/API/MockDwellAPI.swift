@@ -443,9 +443,10 @@ final class MockDwellAPI: DwellAPI {
         return me
     }
 
-    func updateProfile(timezone: String?, preferredLanguage: String?, pushToken: String?) async throws -> DwellUser {
+    func updateProfile(name: String?, timezone: String?, preferredLanguage: String?, pushToken: String?) async throws -> DwellUser {
         try await tick()
         guard var u = me else { throw DwellError.notAuthenticated }
+        if let name { u.name = name }
         if let timezone { u.timezone = timezone }
         if let preferredLanguage { u.preferredLanguage = preferredLanguage }
         if let pushToken { u.pushToken = pushToken }

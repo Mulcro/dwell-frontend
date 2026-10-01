@@ -30,7 +30,7 @@ struct SignUpView: View {
             SkyBackground(height: 300, fadeFrom: 0.2)
 
             VStack(alignment: .leading, spacing: 0) {
-                OnboardingHeader(progress: 0.08, onBack: onBack)
+                OnboardingBackBar(onBack: onBack)
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: Space.xl) {
@@ -47,14 +47,14 @@ struct SignUpView: View {
 
                         DwellField(label: "Password",
                                    placeholder: "Password",
-                                   description: "At least 8 characters.",
                                    error: passwordError,
                                    secure: true,
                                    text: $password)
 
                         PrimaryButton(title: "Continue",
                                       enabled: canContinue,
-                                      loading: working) {
+                                      loading: working,
+                                      accent: true) {
                             Task { await submit() }
                         }
 
@@ -62,7 +62,11 @@ struct SignUpView: View {
                             line; Text("or").font(.dwellSmall).foregroundStyle(t.textSecondary); line
                         }
 
-                        ProviderButtons(onSignedIn: onContinue,
+                        PrimaryButton(title: "Continue with YouVersion") {
+                            Task { await youVersion() }
+                        }
+
+                        SocialButtonRow(onSignedIn: onContinue,
                                         onError: { message in
                                             guard !message.isEmpty else { return }
                                             emailError = message
@@ -109,6 +113,21 @@ struct SignUpView: View {
     /// With `mailer_autoconfirm` off and no SMTP configured, `signUp` succeeds
     /// but no session is created — so the very next call fails on a missing
     /// session. Name that plainly instead of showing the raw error.
+    private func youVersion() async {
+        do {
+            _ = try await session.api.signIn(provider: .youversion)
+            await session.syncProfileIfNeeded()
+            await session.bootstrap()
+            Haptics.posted()
+            onContinue()
+        } catch is CancellationError {
+            // Dismissed the sheet.
+        } catch {
+            Haptics.warning()
+            emailError = ProviderButtons.friendly(error)
+        }
+    }
+
     private static func friendlySignUp(_ error: Error) -> String {
         let raw = error.localizedDescription.lowercased()
         if raw.contains("session") || raw.contains("not authenticated") {

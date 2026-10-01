@@ -41,9 +41,10 @@ error parsing — `error` for Edge Functions, `message` for PostgREST.
 
 ## Still open — but these are for Mulero, not the backend
 
-- [ ] **Enable `mailer_autoconfirm`.** Email/password is live but no SMTP is
-      configured, so confirmation emails never send. Sign-up is broken on the
-      hosted project until this is on. Backend offered; say yes.
+- [x] ~~**Enable `mailer_autoconfirm`.**~~ **Done — verified live 2026-09-28.**
+      A fresh `POST /auth/v1/signup` now returns a usable account and
+      `grant_type=password` signs it in immediately, with no confirmation
+      step. Email sign-up works on the hosted project.
 - [ ] **Apple Developer credentials** (Services ID, Team ID, Key ID, `.p8`).
       Apple sign-in isn't configured. Not needed for development, but **App
       Store rules require Sign in with Apple if Google ships**, so it's needed
@@ -113,5 +114,39 @@ Minor: every seeded group has `timezone: "UTC"` because the seed doesn't send
 one. Harmless while frequency is `daily`, but it's exactly the trap rule 1 of
 the contract warns about.
 
+**4. The demo credentials no longer work.** As of 2026-09-28,
+`demo-alice@dwell.test` with `dwell-demo-2026` returns **"Invalid login
+credentials"** from `grant_type=password` — so `DWELL_SELFTEST=1` fails at the
+first step, and any demo that leans on the seeded accounts will too. Either
+the password changed or the accounts were dropped. **Re-run `seed-demo.sh` and
+confirm the password before demoing.**
+
 **Demo accounts:** `demo-alice@dwell.test` / `demo-bob@…` / `demo-carol@…`,
-password `dwell-demo-2026`.
+password `dwell-demo-2026` — *currently rejected, see 4 above*.
+
+---
+
+## New: display name is "Friend" for email sign-ups
+
+`handle_new_auth_user` seeds `name = coalesce(raw_user_meta_data->>'name',
+'Friend')`. The client now fills that in from the provider wherever it can:
+YouVersion's `name` / `given_name`+`family_name` claims, and Google's
+`full_name` / `name` user metadata, written over the placeholder once at
+sign-in and never over a name the user has since chosen.
+
+**Email/password sign-up has no such source.** The Figma sign-up screen
+collects email and password only — no name field — so those users stay
+literally called "Friend" on Home and in every member list, with nowhere in
+the app to change it.
+
+Three ways out, needs a decision:
+
+1. **Add a name field to the sign-up screen** — a design change for Taylor,
+   and the only option that asks the user directly.
+2. **Add a profile editor** — belongs with the settings screen, which is part
+   of the un-redesigned daily loop.
+3. **Derive a provisional name from the email local part** — no new UI, but it
+   produces whatever is left of the address, which is often not a name.
+
+Deliberately not guessed in the client: showing someone a name they never
+chose is worse than showing the placeholder.

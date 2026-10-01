@@ -34,12 +34,29 @@ struct OnboardingFlow: View {
         default:             return .welcome
         }
     }
+    /// Guards the one-time entry correction below.
+    @State private var resolvedEntry = false
+    /// True when the flow opened straight onto `.startOrJoin` because the user
+    /// was already signed in — there is then no earlier step to go back to.
+    @State private var enteredAtStartOrJoin = false
     @State private var showLogIn = false
     @State private var creating = false
     @State private var error: String?
 
     var body: some View {
         content
+            // The router sends "signed in, but no group" here, and the flow's
+            // first step is the signed-out entry — so without this a user who
+            // already has an account is asked to create one. Their account is
+            // fine; what they're missing is a group.
+            .task {
+                guard !resolvedEntry else { return }
+                resolvedEntry = true
+                guard ProcessInfo.processInfo.environment["DWELL_STEP"] == nil,
+                      session.isSignedIn, step == .welcome else { return }
+                enteredAtStartOrJoin = true
+                step = .startOrJoin
+            }
             .sheet(isPresented: $showLogIn) {
                 LogInView(
                     // Signing in doesn't mean "done" — it means we now know
@@ -88,7 +105,7 @@ struct OnboardingFlow: View {
                            onContinue: { step = .startOrJoin })
 
         case .startOrJoin:
-            StartOrJoinView(onBack: { step = .stats },
+            StartOrJoinView(onBack: enteredAtStartOrJoin ? nil : { step = .stats },
                             onCreate: { step = .buildGroup },
                             onJoined: {
                                 // Joining completes setup; the notifications

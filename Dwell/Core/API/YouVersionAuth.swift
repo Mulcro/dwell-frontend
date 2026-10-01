@@ -37,11 +37,33 @@ final class YouVersionAuth: NSObject {
     private let tokenURL = URL(string: "https://api.youversion.com/auth/token")!
 
     private var session: ASWebAuthenticationSession?
-    /// Captured on the main actor before the session starts. Resolving the
-    /// window inside `presentationAnchor` would mean asserting main-actor
-    /// isolation from a nonisolated callback, which traps if AuthenticationServices
-    /// ever calls it off the main thread.
+    /// Resolved on the main actor before the session starts. Resolving inside
+    /// `presentationAnchor` would mean asserting main-actor isolation from a
+    /// nonisolated callback, which traps if it's ever called off-main.
     private var anchor: ASPresentationAnchor?
+
+    /// Profile claims from the last successful sign-in — `name`, `email`, and
+    /// possibly `picture`. YouVersion's `profile` scope usually carries an
+    /// avatar; this is how we find out what's actually there.
+    private(set) var lastClaims: [String: Any]?
+
+    var avatarURL: URL? {
+        guard let raw = lastClaims?["picture"] as? String else { return nil }
+        return URL(string: raw)
+    }
+
+    /// Display name from the `profile` scope. OIDC spells it `name`; some
+    /// providers only send the halves, so those are stitched as a fallback.
+    var displayName: String? {
+        if let name = lastClaims?["name"] as? String,
+           !name.trimmingCharacters(in: .whitespaces).isEmpty {
+            return name
+        }
+        let parts = [lastClaims?["given_name"] as? String,
+                     lastClaims?["family_name"] as? String].compactMap { $0 }
+        let joined = parts.joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        return joined.isEmpty ? nil : joined
+    }
 
     init(supabaseURL: URL, appKey: String) {
         self.relayURL = supabaseURL.appendingPathComponent("functions/v1/yv-callback").absoluteString
@@ -77,7 +99,10 @@ final class YouVersionAuth: NSObject {
             .init(name: "require_user_interaction", value: "true")
         ]
 
-        anchor = Self.currentWindow()
+        anchor = Self.presentationWindow()
+        guard anchor != nil else {
+            throw DwellError.network("Couldn't find a window to present sign-in from.")
+        }
 
         let callback: URL = try await withCheckedThrowingContinuation { continuation in
             let session = ASWebAuthenticationSession(
@@ -86,10 +111,20 @@ final class YouVersionAuth: NSObject {
             ) { url, error in
                 if let url {
                     continuation.resume(returning: url)
-                } else if let error = error as? ASWebAuthenticationSessionError,
-                          error.code == .canceledLogin {
-                    continuation.resume(throwing: CancellationError())
+                } else if let sessionError = error as? ASWebAuthenticationSessionError {
+                    // Name the code — "the sheet closed" is not a diagnosis.
+                    print("YV-AUTH ASWebAuthenticationSessionError code=\(sessionError.code.rawValue) \(sessionError.localizedDescription)")
+                    switch sessionError.code {
+                    case .canceledLogin:
+                        continuation.resume(throwing: CancellationError())
+                    case .presentationContextNotProvided, .presentationContextInvalid:
+                        continuation.resume(throwing: DwellError.network(
+                            "Couldn't present the sign-in window. Restart the app and try again."))
+                    default:
+                        continuation.resume(throwing: DwellError.network(sessionError.localizedDescription))
+                    }
                 } else {
+                    print("YV-AUTH unexpected: \(String(describing: error))")
                     continuation.resume(throwing: error ?? DwellError.network("Sign-in was interrupted."))
                 }
             }
@@ -137,7 +172,27 @@ final class YouVersionAuth: NSObject {
         guard let token = try? JSONDecoder().decode(TokenResponse.self, from: data) else {
             throw DwellError.network("YouVersion's response didn't include an identity token.")
         }
+        lastClaims = Self.claims(from: token.id_token)
+        #if DEBUG
+        print("YV-AUTH id_token claims: \(lastClaims?.keys.sorted() ?? [])")
+        if let picture = lastClaims?["picture"] as? String {
+            print("YV-AUTH picture: \(picture)")
+        }
+        #endif
         return token.id_token
+    }
+
+    /// Decodes the JWT payload. Read-only — the token is verified server-side
+    /// by the bridge, so this is purely to read the profile claims.
+    static func claims(from idToken: String) -> [String: Any]? {
+        let parts = idToken.split(separator: ".")
+        guard parts.count == 3 else { return nil }
+        var payload = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while payload.count % 4 != 0 { payload += "=" }
+        guard let data = Data(base64Encoded: payload) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     }
 
     // MARK: - 3. Bridge
@@ -183,13 +238,20 @@ final class YouVersionAuth: NSObject {
 }
 
 extension YouVersionAuth {
+    /// A window that is genuinely in the hierarchy.
+    ///
+    /// Deliberately returns nil rather than falling back to a bare
+    /// `ASPresentationAnchor()` — that's an empty, unattached window, and
+    /// presenting onto it makes iOS tear the sheet down immediately, which
+    /// looks exactly like the app crashing.
     @MainActor
-    static func currentWindow() -> ASPresentationAnchor {
-        let scene = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first { $0.activationState == .foregroundActive }
-            ?? UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-        return scene?.keyWindow ?? scene?.windows.first ?? ASPresentationAnchor()
+    static func presentationWindow() -> ASPresentationAnchor? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+
+        if let key = scene?.windows.first(where: \.isKeyWindow) { return key }
+        if let visible = scene?.windows.first(where: { !$0.isHidden }) { return visible }
+        return scene?.windows.first
     }
 }
 

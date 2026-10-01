@@ -43,7 +43,7 @@ struct RootView: View {
         case .onboarding:
             OnboardingFlow()
         case .home:
-            HomeView()
+            AppShell()
         }
     }
 

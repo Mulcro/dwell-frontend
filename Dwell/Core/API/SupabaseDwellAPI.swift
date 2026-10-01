@@ -66,6 +66,47 @@ final class SupabaseDwellAPI: DwellAPI {
 
     // MARK: - Auth
 
+    /// The literal string the auth trigger writes when the provider sent no
+    /// name: `coalesce(raw_user_meta_data->>'name', 'Friend')`. Someone who
+    /// signed in with a provider that *does* know their name shouldn't be
+    /// stuck being called this.
+    private static let placeholderName = "Friend"
+
+    /// Providers report identity in different shapes — YouVersion through the
+    /// id_token claims, Google through Supabase's user metadata. Both land
+    /// here once the session exists.
+    ///
+    /// The name is only written over the placeholder: a user who has since
+    /// set their own name must not have it reverted by their next sign-in.
+    private func adoptProviderProfile(name: String?, avatar: URL?) async {
+        AvatarStore.shared.remember(avatar)
+
+        guard let name = name?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !name.isEmpty,
+              let current = try? await currentUser(),
+              current.name == Self.placeholderName || current.name.isEmpty
+        else { return }
+
+        _ = try? await updateProfile(name: name, timezone: nil,
+                                     preferredLanguage: nil, pushToken: nil)
+    }
+
+    /// Name and picture as Supabase stores them for an OAuth user. Key names
+    /// differ by provider, so each is tried in turn.
+    private func providerMetadata() async -> (name: String?, avatar: URL?) {
+        guard let user = try? await client.auth.session.user else { return (nil, nil) }
+        func string(_ keys: [String]) -> String? {
+            for key in keys {
+                if case .string(let value)? = user.userMetadata[key], !value.isEmpty {
+                    return value
+                }
+            }
+            return nil
+        }
+        return (string(["full_name", "name"]),
+                string(["avatar_url", "picture"]).flatMap { URL(string: $0) })
+    }
+
     func signIn(provider: AuthProvider) async throws -> DwellUser {
         switch provider {
         case .google:
@@ -73,8 +114,12 @@ final class SupabaseDwellAPI: DwellAPI {
             // external_google_additional_client_ids isn't set, so a native iOS
             // token is rejected.
             try await client.auth.signInWithOAuth(provider: .google, redirectTo: redirectURL)
+            let profile = await providerMetadata()
+            await adoptProviderProfile(name: profile.name, avatar: profile.avatar)
         case .apple:
             throw DwellError.notImplemented("Sign in with Apple")
+        case .facebook:
+            throw DwellError.notImplemented("Facebook sign-in")
         case .youversion:
             guard let youVersion else {
                 throw DwellError.notImplemented("YouVersion sign-in — YOUVERSION_APP_KEY isn't set")
@@ -85,6 +130,10 @@ final class SupabaseDwellAPI: DwellAPI {
             let bridged = try await youVersion.authenticate(
                 supabaseURL: url, publishableKey: publishableKey)
             try await client.auth.verifyOTP(tokenHash: bridged.tokenHash, type: .magiclink)
+            // `users` has no avatar column, so the URL is kept on the device
+            // for the signed-in user until the backend stores it.
+            await adoptProviderProfile(name: youVersion.displayName,
+                                       avatar: youVersion.avatarURL)
         case .email:
             throw DwellError.notImplemented("Use signIn(email:password:)")
         }
@@ -214,9 +263,10 @@ final class SupabaseDwellAPI: DwellAPI {
             .single().execute().value
     }
 
-    func updateProfile(timezone: String?, preferredLanguage: String?, pushToken: String?) async throws -> DwellUser {
+    func updateProfile(name: String?, timezone: String?, preferredLanguage: String?, pushToken: String?) async throws -> DwellUser {
         let id = try await currentUserId()
         var patch: [String: AnyJSON] = [:]
+        if let name { patch["name"] = .string(name) }
         if let timezone { patch["timezone"] = .string(timezone) }
         if let preferredLanguage { patch["preferred_language"] = .string(preferredLanguage) }
         if let pushToken { patch["push_token"] = .string(pushToken) }

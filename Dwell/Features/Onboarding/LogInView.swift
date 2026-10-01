@@ -18,15 +18,20 @@ struct LogInView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.xl) {
-            Capsule()
-                .fill(t.borderStrong)
-                .frame(width: 36, height: 4)
-                .frame(maxWidth: .infinity)
-                .padding(.top, Space.md)
-
-            Text("Welcome Back!")
-                .font(.dwellTitle)
-                .foregroundStyle(t.textPrimary)
+            HStack {
+                Text("Welcome Back!")
+                    .font(.dwellTitle)
+                    .foregroundStyle(t.textPrimary)
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 19, weight: .medium))
+                        .foregroundStyle(t.textPrimary)
+                }
+                .buttonStyle(PressScale())
+                .accessibilityLabel("Close")
+            }
+            .padding(.top, Space.xl)
 
             DwellField(label: "Email", placeholder: "you@email.com",
                        error: error, keyboard: .emailAddress, text: $email)
@@ -37,7 +42,7 @@ struct LogInView: View {
                 Text(error).font(.dwellCaption).foregroundStyle(t.danger)
             }
 
-            PrimaryButton(title: "Continue", enabled: canContinue, loading: working) {
+            PrimaryButton(title: "Continue", enabled: canContinue, loading: working, accent: true) {
                 Task { await submit() }
             }
 
@@ -47,7 +52,11 @@ struct LogInView: View {
                 Rectangle().fill(t.border).frame(height: 1)
             }
 
-            ProviderButtons(onSignedIn: onDone,
+            PrimaryButton(title: "Continue with YouVersion") {
+                Task { await youVersion() }
+            }
+
+            SocialButtonRow(onSignedIn: onDone,
                             onError: { message in
                                 guard !message.isEmpty else { return }
                                 error = message
@@ -60,8 +69,22 @@ struct LogInView: View {
         .padding(.horizontal, Space.gutter)
         .padding(.bottom, Space.lg)
         .dwellThemed()
-        .presentationDetents([.height(620)])
+        .presentationDetents([.height(680)])
         .presentationDragIndicator(.hidden)
+    }
+
+    private func youVersion() async {
+        do {
+            _ = try await session.api.signIn(provider: .youversion)
+            await session.syncProfileIfNeeded()
+            await session.bootstrap()
+            Haptics.posted()
+            onDone()
+        } catch is CancellationError {
+        } catch {
+            Haptics.warning()
+            self.error = ProviderButtons.friendly(error)
+        }
     }
 
     private func submit() async {

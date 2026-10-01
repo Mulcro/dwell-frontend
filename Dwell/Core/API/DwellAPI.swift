@@ -59,7 +59,10 @@ protocol DwellAPI {
     // MARK: - §1.3 Direct database API (PostgREST + RLS)
 
     func currentUser() async throws -> DwellUser
-    func updateProfile(timezone: String?,
+    /// `name` is here because the auth trigger seeds the literal placeholder
+    /// "Friend" when the provider sends no name — see `SessionStore`.
+    func updateProfile(name: String?,
+                       timezone: String?,
                        preferredLanguage: String?,
                        pushToken: String?) async throws -> DwellUser
 
@@ -112,7 +115,7 @@ enum AuthProvider: String, Codable, Hashable, CaseIterable, Identifiable {
     /// Email + password. Designed in the redesign's Sign Up screen; not in the
     /// Client API Contract, which covers OAuth only — backend to confirm.
     case email
-    case apple, google, youversion
+    case apple, google, facebook, youversion
 
     var id: String { rawValue }
 
@@ -120,6 +123,7 @@ enum AuthProvider: String, Codable, Hashable, CaseIterable, Identifiable {
         switch self {
         case .email:      return "Continue"
         case .apple:      return "Continue with Apple"
+        case .facebook:   return "Continue with Facebook"
         case .google:     return "Continue with Google"
         case .youversion: return "Continue with YouVersion"
         }
@@ -130,7 +134,7 @@ enum AuthProvider: String, Codable, Hashable, CaseIterable, Identifiable {
     /// OIDC discovery document, and whether its OAuth client issues a client
     /// secret at all. The screens are built either way; this decides which
     /// call actually fires.
-    var isAvailableInMVP: Bool { self != .youversion }
+    var isAvailableInMVP: Bool { self == .google || self == .email || self == .youversion }
 }
 
 // MARK: - Response envelopes

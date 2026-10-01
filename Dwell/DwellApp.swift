@@ -7,6 +7,7 @@ struct DwellApp: App {
     @State private var mock: MockDwellAPI?
 
     init() {
+
         // Real backend when Secrets.xcconfig carries a publishable key,
         // the mock otherwise. DWELL_FORCE_MOCK=1 pins it to the mock.
         let forceMock = ProcessInfo.processInfo.environment["DWELL_FORCE_MOCK"] == "1"

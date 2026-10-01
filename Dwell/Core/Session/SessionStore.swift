@@ -85,6 +85,7 @@ final class SessionStore {
         let needsLanguage = current.preferredLanguage == "en" && deviceLanguage != "en"
         guard needsZone || needsLanguage else { return }
         me = try? await api.updateProfile(
+            name: nil,
             timezone: needsZone ? deviceZone : nil,
             preferredLanguage: needsLanguage ? deviceLanguage : nil,
             pushToken: nil)
@@ -142,6 +143,7 @@ final class SessionStore {
         pendingNudge = nil
         inactivityPromptPending = false
         onboardingActive = false
+        AvatarStore.shared.clear()
     }
 
     func reload() async {

@@ -6,6 +6,11 @@ struct PrimaryButton: View {
     let title: String
     var enabled: Bool = true
     var loading: Bool = false
+    /// Auth screens and the day's main action fill with the cyan accent;
+    /// everywhere else the primary action is ink.
+    var accent: Bool = false
+    /// Optional leading SF Symbol, as on "Send the group a gentle nudge".
+    var icon: String? = nil
     var action: () -> Void = {}
     @Environment(\.dwell) private var t
 
@@ -18,13 +23,16 @@ struct PrimaryButton: View {
             HStack(spacing: Space.sm) {
                 if loading {
                     ProgressView().tint(t.onInk)
+                } else if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 17, weight: .medium))
                 }
                 Text(title).font(.dwellButton)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)
             .foregroundStyle(t.onInk)
-            .background(t.ink.opacity(enabled ? 1 : 0.35))
+            .background((accent ? t.accent : t.ink).opacity(enabled ? 1 : 0.35))
             .clipShape(Capsule())
         }
         .buttonStyle(PressScale())

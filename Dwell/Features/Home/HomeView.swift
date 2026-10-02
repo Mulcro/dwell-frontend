@@ -40,9 +40,6 @@ struct HomeView: View {
                     pulseCard
                         .padding(.top, Space.lg)
 
-                    statsStrip
-                        .padding(.top, Space.lg)
-
                     body(for: state)
                         .padding(.top, Space.xl)
                 }
@@ -209,6 +206,7 @@ struct HomeView: View {
             }
 
             yourReflectionRow
+            statsStrip
             nextOpensNote
         }
         .frame(maxWidth: .infinity)
@@ -235,6 +233,7 @@ struct HomeView: View {
             PrimaryButton(title: "Read reflections", accent: true) { showFeed = true }
 
             yourReflectionRow
+            statsStrip
             nextOpensNote
         }
         .frame(maxWidth: .infinity)

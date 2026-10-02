@@ -226,6 +226,9 @@ struct RecordReflectionView: View {
     }
 
     private func preparePhoto(_ item: PhotosPickerItem) async {
+        // Claim a fresh token first, so an earlier pick still preparing can't
+        // finish last and replace this one.
+        captureToken = UUID()
         let token = captureToken
         preparingPhoto = true
         defer { preparingPhoto = false; pickedPhoto = nil }

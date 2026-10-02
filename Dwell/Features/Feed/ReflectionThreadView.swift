@@ -358,6 +358,10 @@ struct ReflectionThreadView: View {
     }
 
     private func stagePhoto(_ item: PhotosPickerItem) async {
+        // Claim a fresh token first: two picks in quick succession otherwise
+        // share one, and the slower preparation finishes last and overwrites
+        // the newer choice.
+        captureToken = UUID()
         let token = captureToken
         defer { pickedPhoto = nil }
         guard let data = try? await item.loadTransferable(type: Data.self),

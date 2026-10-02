@@ -15,6 +15,7 @@ struct MemoriesView: View {
     @State private var opened: Reflection?
     @State private var pastPulses: [AIInsight] = []
     @State private var challengePhotos: [URL] = []
+    @State private var challengePhotosSignedAt: Date?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -36,12 +37,17 @@ struct MemoriesView: View {
                 .refreshable {
                     await session.reload()
                     await loadPulses()
+                    await loadChallengePhotos(force: true)
                 }
             }
         }
         .dwellThemed()
         .task { await loadPulses() }
-        .task(id: session.myReflections.count) { await loadChallengePhotos() }
+        .task(id: session.myReflections.count) { await loadChallengePhotos(force: true) }
+        // Signed URLs expire after an hour. Keying the load to the reflection
+        // count alone meant a tab left open — or refreshed without posting —
+        // kept URLs until they died and the tiles went blank.
+        .onAppear { Task { await loadChallengePhotos() } }
         .sheet(item: $opened) { reflection in
             MemoryDetailView(reflection: reflection) { opened = nil }
         }
@@ -189,7 +195,12 @@ struct MemoriesView: View {
     }
 
     /// Signs the first few photographs for the fanned stack.
-    private func loadChallengePhotos() async {
+    ///
+    /// Re-signed well before the hour is up, so a stack that has been on
+    /// screen a while doesn't quietly turn into empty tiles.
+    private func loadChallengePhotos(force: Bool = false) async {
+        if !force, let signedAt = challengePhotosSignedAt,
+           Date.now.timeIntervalSince(signedAt) < 45 * 60 { return }
         let paths = session.myReflections
             .filter { $0.mediaType == .photo }
             .compactMap(\.mediaPath)
@@ -199,6 +210,7 @@ struct MemoriesView: View {
             if let url = try? await session.api.mediaURL(path: path) { urls.append(url) }
         }
         challengePhotos = urls
+        challengePhotosSignedAt = .now
     }
 
     // MARK: - What the group noticed

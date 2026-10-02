@@ -328,7 +328,7 @@ struct HomeView: View {
                         Text("Group Pulse")
                             .font(.dwellBodyMd)
                             .foregroundStyle(t.accent)
-                        Text(pulse.content)
+                        Text(pulsePreview(pulse))
                             .font(.dwellBody)
                             .foregroundStyle(t.textPrimary)
                             .lineLimit(2)
@@ -349,6 +349,17 @@ struct HomeView: View {
             }
             .buttonStyle(PressScale())
         }
+    }
+
+    /// The headline where one exists, otherwise the summary — both in the
+    /// reader's language. Reading `content` directly showed the original to
+    /// someone whose full pulse would have been translated.
+    private func pulsePreview(_ pulse: AIInsight) -> String {
+        let language = session.me?.preferredLanguage ?? "en"
+        if let headline = pulse.payload(in: language)?.headline, !headline.isEmpty {
+            return headline
+        }
+        return pulse.summary(in: language)
     }
 
     /// The companion's nudge, which until now was written to the database

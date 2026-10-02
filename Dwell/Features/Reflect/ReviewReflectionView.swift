@@ -28,7 +28,10 @@ struct ReviewReflectionView: View {
     private var handled: [(icon: String, title: String, detail: String)] {
         var rows: [(String, String, String)] = []
         if draft.mediaType == .voice {
-            rows.append(("waveform", "Transcribed", "\(languageName), on this device"))
+            rows.append(("waveform", "Transcribed",
+                         draft.transcribedOnDevice
+                         ? "\(languageName), on this device"
+                         : "\(languageName), by Apple's service"))
         }
         rows.append(("character.bubble", "Translated for the group",
                      "Written in \(languageName) — members read it in theirs"))

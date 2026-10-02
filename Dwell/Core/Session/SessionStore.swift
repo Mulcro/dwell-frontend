@@ -367,13 +367,20 @@ final class SessionStore {
         let deviceLanguage = Locale.current.language.languageCode?.identifier ?? "en"
         let needsZone = current.timezone == "UTC" && deviceZone != "UTC"
         let needsLanguage = current.preferredLanguage == "en" && deviceLanguage != "en"
-        UserDefaults.standard.set(true, forKey: seal)
-        guard needsZone || needsLanguage else { return }
-        me = try? await api.updateProfile(
+        guard needsZone || needsLanguage else {
+            // Nothing to push — seal it so a later Settings choice is safe.
+            UserDefaults.standard.set(true, forKey: seal)
+            return
+        }
+        // Sealed only on success: sealing first meant one failed request left
+        // the device's timezone and language unapplied forever.
+        guard let updated = try? await api.updateProfile(
             name: nil,
             timezone: needsZone ? deviceZone : nil,
             preferredLanguage: needsLanguage ? deviceLanguage : nil,
-            pushToken: nil)
+            pushToken: nil) else { return }
+        me = updated
+        UserDefaults.standard.set(true, forKey: seal)
     }
 
     func bootstrap() async {

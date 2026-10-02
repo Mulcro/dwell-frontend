@@ -245,6 +245,23 @@ struct ReflectionThreadView: View {
             guard let item else { return }
             Task { await stagePhoto(item) }
         }
+        // The recogniser can stop itself at the 120s cap or on a final result;
+        // capturing only on the Stop tap loses the recording in those cases.
+        .onChange(of: speech?.state) { _, state in
+            guard state == .finished else { return }
+            captureRecording()
+        }
+    }
+
+    /// Mirrors a finished recording into the staged attachment.
+    private func captureRecording() {
+        guard attachment == nil, let speech, let url = speech.recordingURL else { return }
+        attachmentDuration = speech.duration
+        attachmentPeaks = speech.levels
+        attachment = .voice(Recording(fileURL: url,
+                                      durationSeconds: Int(attachmentDuration.rounded()),
+                                      peaks: speech.peaks))
+        if draft.isEmpty, !speech.transcript.isEmpty { draft = speech.transcript }
     }
 
     private var placeholder: String {
@@ -328,14 +345,7 @@ struct ReflectionThreadView: View {
         if isRecording {
             speech?.stop()
             // The encoder is flushed on stop, so the file is only valid now.
-            if let url = speech?.recordingURL {
-                attachmentDuration = speech?.duration ?? 0
-                attachmentPeaks = speech?.levels ?? []
-                attachment = .voice(Recording(fileURL: url,
-                                              durationSeconds: Int(attachmentDuration.rounded()),
-                                              peaks: speech?.peaks ?? []))
-                if draft.isEmpty, let said = speech?.transcript, !said.isEmpty { draft = said }
-            }
+            captureRecording()
             return
         }
         writing = false

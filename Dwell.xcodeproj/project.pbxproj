@@ -200,7 +200,7 @@
 				DEVELOPMENT_TEAM = FTK4LF358Y;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Dwell records your voice reflection so you can speak instead of type. Audio stays on your device — only the transcript is shared with your group.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Dwell records your voice reflection so you can speak instead of type. Your group can hear the recording; it is never shared outside the group.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Dwell transcribes your voice reflection on this device, so your group can read it in their own language.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -228,7 +228,7 @@
 				DEVELOPMENT_TEAM = FTK4LF358Y;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Dwell records your voice reflection so you can speak instead of type. Audio stays on your device — only the transcript is shared with your group.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Dwell records your voice reflection so you can speak instead of type. Your group can hear the recording; it is never shared outside the group.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Dwell transcribes your voice reflection on this device, so your group can read it in their own language.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;

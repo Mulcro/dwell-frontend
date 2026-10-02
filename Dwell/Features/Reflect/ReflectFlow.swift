@@ -17,6 +17,10 @@ struct ReflectFlow: View {
         var duration: TimeInterval = 0
         var levels: [CGFloat] = []
         var language = "en"
+        /// Whether the recogniser actually ran on device. Some locales fall
+        /// back to Apple's servers, and the review screen must not claim
+        /// otherwise — it is a privacy statement, not a label.
+        var transcribedOnDevice = true
         /// The m4a written while recording, with its peaks. Nil for a text
         /// reflection, or when recording failed — posting then degrades to
         /// transcript-only rather than losing the reflection.

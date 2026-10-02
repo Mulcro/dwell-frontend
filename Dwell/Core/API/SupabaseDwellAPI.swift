@@ -228,10 +228,24 @@ final class SupabaseDwellAPI: DwellAPI {
         if let content { body["content"] = .string(content) }
         if let transcript { body["transcript"] = .string(transcript) }
 
-        // Upload first, then name the object. A failed upload degrades to a
-        // text-only post rather than losing the reflection — the transcript is
-        // what moderation, translation and the summaries actually use.
-        if let attachment, let path = try? await uploadMedia(attachment) {
+        // Upload first, then name the object.
+        //
+        // A voice upload that fails degrades to a transcript-only post: the
+        // words are what moderation, translation and the summaries use, so the
+        // reflection still counts. A *photo* cannot degrade — the caption
+        // alone is not what the person chose to post, and `media_type: photo`
+        // without an object is a 400 — so that failure propagates.
+        if let attachment {
+            let path: String
+            switch attachment {
+            case .photo:
+                path = try await uploadMedia(attachment)
+            case .voice:
+                guard let uploaded = try? await uploadMedia(attachment) else {
+                    return try await invoke("submit-reflection", body: body)
+                }
+                path = uploaded
+            }
             body["media_path"] = .string(path)
             body["media_mime"] = .string(attachment.mime)
             // Duration and peaks belong to audio only — sending either with a
@@ -401,8 +415,13 @@ final class SupabaseDwellAPI: DwellAPI {
 
     func myReflections(groupId: UUID) async throws -> [Reflection] {
         let id = try await currentUserId()
-        return try await client.from("reflections").select()
+        // Joined through `day_instances` so this returns one group's history.
+        // Unscoped, someone in two groups would see the other group's posts in
+        // this group's Memories and stats.
+        return try await client.from("reflections")
+            .select("*, day_instances!inner(group_id)")
             .eq("user_id", value: id)
+            .eq("day_instances.group_id", value: groupId)
             .execute().value
     }
 

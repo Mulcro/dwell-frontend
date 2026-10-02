@@ -24,6 +24,7 @@ struct SettingsView: View {
     @State private var showTimeZone = false
     @State private var confirmingDelete = false
     @State private var deleting = false
+    @State private var toast: Toast?
 
     /// Drawn order, verbatim from the Figma.
     private let notificationRows = [
@@ -109,12 +110,19 @@ struct SettingsView: View {
         }
     }
 
+    private static let notificationsKey = "settings.notifications"
+    private static let findByPhoneKey = "settings.findByPhone"
+    private static let contactSyncKey = "settings.contactSync"
+
     private var notificationCard: some View {
         card {
             ForEach(Array(notificationRows.enumerated()), id: \.offset) { index, row in
                 Toggle(isOn: Binding(
                     get: { notifications[row] ?? true },
-                    set: { notifications[row] = $0 })) {
+                    set: {
+                        notifications[row] = $0
+                        UserDefaults.standard.set(notifications, forKey: Self.notificationsKey)
+                    })) {
                     Text(row)
                         .font(.dwellBody)
                         .foregroundStyle(t.textPrimary)
@@ -124,6 +132,15 @@ struct SettingsView: View {
 
                 if index < notificationRows.count - 1 { divider }
             }
+
+            divider
+            // Honest about reach: push needs a paid Apple Developer
+            // membership, so until then these govern what appears in the app.
+            Text("Reminders appear in Dwell for now. Push notifications arrive "
+                 + "once the app is on the App Store.")
+                .font(.dwellCaption)
+                .foregroundStyle(t.textSecondary)
+                .padding(.top, Space.sm)
         }
     }
 
@@ -170,7 +187,10 @@ struct SettingsView: View {
 
     private var preferencesCard: some View {
         card {
-            Toggle(isOn: $findByPhone) {
+            Toggle(isOn: Binding(get: { findByPhone }, set: {
+                findByPhone = $0
+                UserDefaults.standard.set($0, forKey: Self.findByPhoneKey)
+            })) {
                 Text("Find me by phone number")
                     .font(.dwellBody).foregroundStyle(t.textPrimary)
             }
@@ -179,7 +199,10 @@ struct SettingsView: View {
 
             divider
 
-            Toggle(isOn: $contactSync) {
+            Toggle(isOn: Binding(get: { contactSync }, set: {
+                contactSync = $0
+                UserDefaults.standard.set($0, forKey: Self.contactSyncKey)
+            })) {
                 Text("Contact sync")
                     .font(.dwellBody).foregroundStyle(t.textPrimary)
             }
@@ -284,15 +307,25 @@ struct SettingsView: View {
                 .foregroundStyle(t.textSecondary)
                 .lineSpacing(LineSpacing.small)
         }
+        .toast($toast)
         .alert("Delete your account?", isPresented: $confirmingDelete) {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
                 Task {
                     deleting = true
-                    try? await session.api.deleteAccount()
+                    defer { deleting = false }
+                    do {
+                        // Only sign out once the server has confirmed it.
+                        // Swallowing this left someone believing an
+                        // irreversible action had happened when it hadn't.
+                        try await session.api.deleteAccount()
+                    } catch {
+                        toast = .failure("We couldn't delete your account. "
+                                         + error.localizedDescription)
+                        return
+                    }
                     session.finishOnboarding()
                     await session.bootstrap()
-                    deleting = false
                 }
             }
         } message: {
@@ -345,7 +378,13 @@ struct SettingsView: View {
 
     private func seedToggles() {
         guard notifications.isEmpty else { return }
-        notifications = Dictionary(uniqueKeysWithValues: notificationRows.map { ($0, true) })
+        // Restored rather than defaulted: these used to reset every time
+        // Settings was rebuilt, so a choice never survived leaving the screen.
+        let stored = UserDefaults.standard.dictionary(forKey: Self.notificationsKey) as? [String: Bool]
+        notifications = Dictionary(uniqueKeysWithValues:
+            notificationRows.map { ($0, stored?[$0] ?? true) })
+        findByPhone = UserDefaults.standard.bool(forKey: Self.findByPhoneKey)
+        contactSync = UserDefaults.standard.bool(forKey: Self.contactSyncKey)
     }
 
     private func updateLanguage(_ code: String) async {

@@ -76,16 +76,22 @@ struct OnThisDayCard: View {
     /// otherwise — the card is photo-led, so it must never be a grey box.
     @ViewBuilder
     private var backdrop: some View {
-        if let url = photoURL ?? planArt {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image): image.resizable().scaledToFill()
-                default: t.surfaceRaised
+        Group {
+            if let url = photoURL ?? planArt {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image): image.resizable().scaledToFill()
+                    default: t.surfaceRaised
+                    }
                 }
+            } else {
+                t.surfaceRaised
             }
-        } else {
-            t.surfaceRaised.task { await loadPhoto() }
         }
+        // Outside the branch deliberately: when the plan has cover art the
+        // first branch always wins, so a task attached to the fallback never
+        // ran and a photo reflection always showed the plan's artwork.
+        .task { await loadPhoto() }
     }
 
     @ViewBuilder

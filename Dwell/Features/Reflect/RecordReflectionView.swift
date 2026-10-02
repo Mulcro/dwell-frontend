@@ -72,6 +72,10 @@ struct RecordReflectionView: View {
             .padding(.bottom, Space.lg)
         }
         .dwellThemed()
+        // The recogniser can also finish by itself — the 120s cap, a final
+        // result, or an error. Mirroring only on the Stop tap left a captured
+        // reflection stranded in those cases.
+        .onChange(of: speech?.state) { _, _ in sync() }
         .onDisappear { speech?.stop() }
         .onChange(of: pickedPhoto) { _, item in
             guard let item else { return }
@@ -301,6 +305,9 @@ struct RecordReflectionView: View {
         Button {
             guard draft.mediaType != mode else { return }
             speech?.stop()
+            // Otherwise a text reflection posts with the audio you recorded
+            // before changing your mind, duration and waveform included.
+            discardAttachment()
             draft.mediaType = mode
             if mode == .text { typing = true }
         } label: {
@@ -309,6 +316,18 @@ struct RecordReflectionView: View {
                 .foregroundStyle(draft.mediaType == mode ? t.accent : t.textPrimary)
         }
         .buttonStyle(PressScale())
+    }
+
+    /// Drops whatever was captured for the previous mode, and the file with it.
+    private func discardAttachment() {
+        if let attachment = draft.attachment {
+            try? FileManager.default.removeItem(at: attachment.fileURL)
+        }
+        draft.attachment = nil
+        draft.duration = 0
+        draft.levels = []
+        photoImage = nil
+        speech = nil
     }
 
     // MARK: - Capture
@@ -330,6 +349,7 @@ struct RecordReflectionView: View {
     private func sync() {
         guard let speech else { return }
         if !speech.transcript.isEmpty { draft.body = speech.transcript }
+        draft.transcribedOnDevice = speech.isOnDevice
         draft.duration = speech.duration
         draft.levels = speech.levels
         if let url = speech.recordingURL, speech.state == .finished {

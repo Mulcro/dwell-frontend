@@ -36,7 +36,7 @@ struct EmptyStateView: View {
                     .font(.dwellBody)
                     .foregroundStyle(t.textSecondary)
                     .multilineTextAlignment(.center)
-                    .lineSpacing(4)
+                    .lineSpacing(LineSpacing.body)
             }
             if let actionTitle {
                 SecondaryButton(title: actionTitle, bordered: true, action: action)
@@ -63,7 +63,7 @@ struct ErrorStateView: View {
                 .font(.dwellSmall)
                 .foregroundStyle(t.textSecondary)
                 .multilineTextAlignment(.center)
-                .lineSpacing(4)
+                .lineSpacing(LineSpacing.body)
             if let retry {
                 SecondaryButton(title: "Try again", bordered: true, action: retry)
                     .padding(.top, Space.sm)

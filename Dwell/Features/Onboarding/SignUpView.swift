@@ -15,14 +15,19 @@ struct SignUpView: View {
 
     @Environment(SessionStore.self) private var session
     @Environment(\.dwell) private var t
+    @State private var name = ""
     @State private var email = ""
     @State private var password = ""
     @State private var emailError: String?
     @State private var passwordError: String?
     @State private var working = false
 
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private var canContinue: Bool {
-        email.contains("@") && password.count >= 8
+        !trimmedName.isEmpty && email.contains("@") && password.count >= 8
     }
 
     var body: some View {
@@ -38,6 +43,14 @@ struct SignUpView: View {
                             .font(.dwellTitle)
                             .lineSpacing(LineSpacing.title)
                             .foregroundStyle(t.textPrimary)
+
+                        // Email sign-up has no provider to take a name from,
+                        // so without this the auth trigger falls back to the
+                        // literal "Friend" — which is then what group-mates
+                        // see on every reflection.
+                        DwellField(label: "Name",
+                                   placeholder: "What should we call you?",
+                                   text: $name)
 
                         DwellField(label: "Email",
                                    placeholder: "you@email.com",
@@ -99,7 +112,7 @@ struct SignUpView: View {
         working = true
         defer { working = false }
         do {
-            _ = try await session.api.signUp(email: email, password: password, name: nil)
+            _ = try await session.api.signUp(email: email, password: password, name: trimmedName)
             await session.syncProfileIfNeeded()
             await session.bootstrap()
             Haptics.posted()

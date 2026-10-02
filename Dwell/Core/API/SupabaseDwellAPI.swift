@@ -47,9 +47,13 @@ final class SupabaseDwellAPI: DwellAPI {
         withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let plain = ISO8601DateFormatter()
         plain.formatOptions = [.withInternetDateTime]
+        // A bare `date` carries no timezone — "2026-10-01" is a calendar day,
+        // not an instant. Parsing it as UTC midnight and then comparing it
+        // with `Calendar.current` shifts it to the previous day for anyone
+        // west of UTC, which put the week strip's tick on the wrong cell.
         let dateOnly = DateFormatter()
         dateOnly.dateFormat = "yyyy-MM-dd"
-        dateOnly.timeZone = TimeZone(identifier: "UTC")
+        dateOnly.timeZone = .current
         dateOnly.locale = Locale(identifier: "en_US_POSIX")
 
         decoder.dateDecodingStrategy = .custom { decoder in
@@ -210,9 +214,12 @@ final class SupabaseDwellAPI: DwellAPI {
         return rows.first
     }
 
-    func submitReflection(dayInstanceId: UUID, mediaType: MediaType,
-                          content: String?, transcript: String?,
-                          language: String) async throws -> SubmitReflectionResponse {
+    func submitReflection(dayInstanceId: UUID,
+                          mediaType: MediaType,
+                          content: String?,
+                          transcript: String?,
+                          language: String,
+                          attachment: MediaAttachment?) async throws -> SubmitReflectionResponse {
         var body: [String: AnyJSON] = [
             "day_instance_id": .string(dayInstanceId.uuidString.lowercased()),
             "media_type": .string(mediaType.rawValue),
@@ -220,7 +227,38 @@ final class SupabaseDwellAPI: DwellAPI {
         ]
         if let content { body["content"] = .string(content) }
         if let transcript { body["transcript"] = .string(transcript) }
+
+        // Upload first, then name the object. A failed upload degrades to a
+        // text-only post rather than losing the reflection — the transcript is
+        // what moderation, translation and the summaries actually use.
+        if let attachment, let path = try? await uploadMedia(attachment) {
+            body["media_path"] = .string(path)
+            body["media_mime"] = .string(attachment.mime)
+            // Duration and peaks belong to audio only — sending either with a
+            // photo is a 400.
+            if case .voice(let recording) = attachment {
+                body["media_duration_seconds"] = .integer(recording.durationSeconds)
+                if !recording.peaks.isEmpty {
+                    body["media_peaks"] = .array(recording.peaks.map { .integer($0) })
+                }
+            }
+        }
+
         return try await invoke("submit-reflection", body: body)
+    }
+
+    /// Uploads with the user's own token to `{user id}/{uuid}.m4a`. The
+    /// storage policy rejects any path outside your own folder, at upload and
+    /// again at submit.
+    private func uploadMedia(_ attachment: MediaAttachment) async throws -> String {
+        let userId = try await currentUserId()
+        let path = "\(userId.uuidString.lowercased())/\(UUID().uuidString.lowercased())"
+            + ".\(attachment.pathExtension)"
+        let data = try Data(contentsOf: attachment.fileURL)
+        _ = try await client.storage.from("reflection-media")
+            .upload(path, data: data,
+                    options: FileOptions(contentType: attachment.mime))
+        return path
     }
 
     func groupChallengeAction(groupId: UUID, action: ChallengeAction) async throws -> ChallengeStatus {
@@ -230,6 +268,42 @@ final class SupabaseDwellAPI: DwellAPI {
             "action": .string(action.rawValue)
         ])
         return response.challenge_status
+    }
+
+    func setAvatar(fileURL: URL, mime: String) async throws -> String {
+        let userId = try await currentUserId()
+        let ext = mime == "image/png" ? "png" : "jpg"
+        let path = "\(userId.uuidString.lowercased())/\(UUID().uuidString.lowercased()).\(ext)"
+        let data = try Data(contentsOf: fileURL)
+        _ = try await client.storage.from("avatars")
+            .upload(path, data: data, options: FileOptions(contentType: mime))
+
+        struct Response: Decodable { let avatar_path: String }
+        do {
+            let response: Response = try await invoke("set-avatar", body: [
+                "media_path": .string(path),
+                "media_mime": .string(mime)
+            ])
+            return response.avatar_path
+        } catch {
+            // 422 is moderation refusing the picture, not a failure — the
+            // upload is already destroyed server-side.
+            throw DwellError.moderationRefused("That picture can't be used as a profile photo. Try a different one.")
+        }
+    }
+
+    func avatarURL(path: String) async throws -> URL {
+        try await client.storage.from("avatars")
+            .createSignedURL(path: path, expiresIn: 60 * 60 * 24)
+    }
+
+    func deleteAccount() async throws {
+        struct Response: Decodable { let deleted: Bool }
+        // `confirm` is required by the contract so a mis-wired call can't
+        // erase an account.
+        let _: Response = try await invoke("delete-account",
+                                           body: ["confirm": .string("DELETE")])
+        try? await client.auth.signOut()
     }
 
     func passage(ref: String) async throws -> Passage {
@@ -325,22 +399,77 @@ final class SupabaseDwellAPI: DwellAPI {
             .eq("day_instance_id", value: dayInstanceId).execute().value
     }
 
+    func myReflections(groupId: UUID) async throws -> [Reflection] {
+        let id = try await currentUserId()
+        return try await client.from("reflections").select()
+            .eq("user_id", value: id)
+            .execute().value
+    }
+
     func comments(reflectionId: UUID) async throws -> [Comment] {
         try await client.from("comments").select()
             .eq("reflection_id", value: reflectionId)
             .order("created_at").execute().value
     }
 
-    func addComment(reflectionId: UUID, content: String) async throws -> Comment {
-        let id = try await currentUserId()
+    func addComment(reflectionId: UUID, content: String,
+                    attachment: MediaAttachment?, transcript: String?,
+                    language: String) async throws {
+        // Direct inserts were revoked on 2026-10-02 (42501) — replies go
+        // through the endpoint so media and text get the same moderation pass
+        // reflections already get.
+        var body: [String: AnyJSON] = [
+            "reflection_id": .string(reflectionId.uuidString.lowercased()),
+            // Optional on the endpoint, but sending it beats the fallback:
+            // for a voice reply this is the recogniser's locale, which is what
+            // the words were actually spoken in.
+            "language": .string(language)
+        ]
+
+        switch attachment {
+        case .voice(let recording):
+            let path = try await uploadMedia(.voice(recording))
+            body["media_type"] = .string(MediaType.voice.rawValue)
+            body["media_path"] = .string(path)
+            body["media_mime"] = .string(recording.mime)
+            body["media_duration_seconds"] = .integer(recording.durationSeconds)
+            if !recording.peaks.isEmpty {
+                body["media_peaks"] = .array(recording.peaks.map { .integer($0) })
+            }
+            // A voice reply requires a transcript, same as a voice reflection.
+            body["transcript"] = .string(transcript ?? content)
+        case .photo(let url, let mime):
+            let path = try await uploadMedia(.photo(fileURL: url, mime: mime))
+            body["media_type"] = .string(MediaType.photo.rawValue)
+            body["media_path"] = .string(path)
+            body["media_mime"] = .string(mime)
+            body["content"] = .string(content)
+        case nil:
+            body["media_type"] = .string(MediaType.text.rawValue)
+            body["content"] = .string(content)
+        }
+
+        struct Response: Decodable { let comment_id: UUID }
         do {
-            return try await client.from("comments").insert([
-                "reflection_id": AnyJSON.string(reflectionId.uuidString.lowercased()),
-                "user_id": .string(id.uuidString.lowercased()),
-                "content": .string(content)
-            ]).select().single().execute().value
+            let _: Response = try await invoke("submit-comment", body: body)
+        } catch DwellError.planHasNoDays {
+            // `fromStatus` maps 422 to "plan has no days" for the endpoints
+            // that predate this one. Here 422 is moderation refusing the
+            // reply — nothing is written and any upload is already destroyed.
+            throw DwellError.moderationRefused(
+                "That reply couldn't be posted. Try rewording it or using a different photo.")
+        }
+    }
+
+    func commentMediaSupported() async -> Bool {
+        // PostgREST answers an unknown column with a 400 naming it, so asking
+        // for one is the cheapest possible feature detection.
+        do {
+            _ = try await client.from("comments")
+                .select("media_path").limit(1).execute()
+            return true
         } catch {
-            throw Self.translate(error)
+            return false
         }
     }
 
@@ -380,6 +509,15 @@ final class SupabaseDwellAPI: DwellAPI {
 
     // MARK: - Plans
 
+    func planImageURL(path: String) -> URL? {
+        try? client.storage.from("plan-images").getPublicURL(path: path)
+    }
+
+    func mediaURL(path: String) async throws -> URL {
+        try await client.storage.from("reflection-media")
+            .createSignedURL(path: path, expiresIn: 60 * 60)
+    }
+
     func listPlans() async throws -> [PlanChallenge] {
         try await client.from("plan_challenges").select().order("title").execute().value
     }
@@ -405,6 +543,35 @@ final class SupabaseDwellAPI: DwellAPI {
 
     func insightInserts(groupId: UUID) -> AsyncStream<AIInsight> {
         stream(table: "ai_insights", groupId: groupId)
+    }
+
+    func membershipChanges(groupId: UUID) -> AsyncStream<Void> {
+        AsyncStream { continuation in
+            let task = Task { [client] in
+                if let token = try? await client.auth.session.accessToken {
+                    await client.realtimeV2.setAuth(token)
+                }
+                let id = groupId.uuidString.lowercased()
+                let channel = client.realtimeV2.channel("public:membership:\(id)")
+
+                // `group_members` keys on group_id; `groups` on its own id.
+                let members = channel.postgresChange(AnyAction.self,
+                                                     schema: "public",
+                                                     table: "group_members",
+                                                     filter: "group_id=eq.\(id)")
+                let groups = channel.postgresChange(AnyAction.self,
+                                                    schema: "public",
+                                                    table: "groups",
+                                                    filter: "id=eq.\(id)")
+                await channel.subscribe()
+
+                await withTaskGroup(of: Void.self) { tasks in
+                    tasks.addTask { for await _ in members { continuation.yield(()) } }
+                    tasks.addTask { for await _ in groups { continuation.yield(()) } }
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 
     private func stream<T: Decodable & Sendable>(table: String, groupId: UUID) -> AsyncStream<T> {
@@ -442,8 +609,31 @@ final class SupabaseDwellAPI: DwellAPI {
 
     /// Edge Functions return `{ "error": … }`; PostgREST returns
     /// `{ code, details, hint, message }`. Neither is safe to show raw.
+    /// Enough detail to find the field without a debugger attached.
+    private static func describe(_ error: DecodingError) -> String {
+        switch error {
+        case .keyNotFound(let key, _):
+            return "Missing field '\(key.stringValue)'."
+        case .valueNotFound(_, let context):
+            return "Null in non-optional '\(context.codingPath.map(\.stringValue).joined(separator: "."))'."
+        case .typeMismatch(let type, let context):
+            return "Expected \(type) at '\(context.codingPath.map(\.stringValue).joined(separator: "."))'."
+        default:
+            return "Malformed response."
+        }
+    }
+
     private static func translate(_ error: Error) -> DwellError {
         if let dwell = error as? DwellError { return dwell }
+
+        // Foundation renders these as "The data couldn't be read because it is
+        // missing", which says nothing about which field or why. A decoding
+        // failure always means the row didn't match this model — usually a
+        // column that became nullable — so name that.
+        if let decoding = error as? DecodingError {
+            return .network("The app couldn't read that response — it doesn't match "
+                            + "what this build expects. \(Self.describe(decoding))")
+        }
 
         if let postgrest = error as? PostgrestError {
             // 42501 is an RLS denial — for comments it just means the day

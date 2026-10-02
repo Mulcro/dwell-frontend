@@ -108,10 +108,13 @@ struct OnboardingFlow: View {
             StartOrJoinView(onBack: enteredAtStartOrJoin ? nil : { step = .stats },
                             onCreate: { step = .buildGroup },
                             onJoined: {
-                                // Joining completes setup; the notifications
-                                // prime is the last thing before home.
+                                // Order matters: hold the flow open *before*
+                                // the group loads, or the router briefly
+                                // routes home and rebuilds this view with its
+                                // step reset. Then load, then advance.
                                 session.beginOnboardingTail()
                                 step = .notifications
+                                Task { await session.bootstrap() }
                             })
 
         case .buildGroup:

@@ -11,6 +11,9 @@ struct PrimaryButton: View {
     var accent: Bool = false
     /// Optional leading SF Symbol, as on "Send the group a gentle nudge".
     var icon: String? = nil
+    /// Shorter pill for in-card actions like Reply, where a full-height
+    /// primary button dominates the content it belongs to.
+    var compact: Bool = false
     var action: () -> Void = {}
     @Environment(\.dwell) private var t
 
@@ -30,7 +33,7 @@ struct PrimaryButton: View {
                 Text(title).font(.dwellButton)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 18)
+            .padding(.vertical, compact ? 12 : 18)
             .foregroundStyle(t.onInk)
             .background((accent ? t.accent : t.ink).opacity(enabled ? 1 : 0.35))
             .clipShape(Capsule())

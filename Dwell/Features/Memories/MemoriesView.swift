@@ -33,6 +33,10 @@ struct MemoriesView: View {
                     .padding(.bottom, TabBarMetrics.clearance)
                 }
                 .scrollIndicators(.hidden)
+                .refreshable {
+                    await session.reload()
+                    await loadPulses()
+                }
             }
         }
         .dwellThemed()

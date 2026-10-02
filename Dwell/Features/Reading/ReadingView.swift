@@ -33,6 +33,9 @@ struct ReadingView: View {
         // Keyed to the plan: bootstrap may not have resolved it when this
         // first appears, and an unkeyed task would never retry.
         .task(id: session.plan?.id) { await load() }
+        // A tapped day otherwise outlives the day it was tapped on: once a new
+        // day opens, the screen stayed on yesterday until the tab was rebuilt.
+        .onChange(of: session.currentDay?.id) { _, _ in selectedIndex = nil }
         // DWELL_READ=devotional|passage opens the reader straight away, for
         // screenshots.
         .task(id: planDays.value?.count) {

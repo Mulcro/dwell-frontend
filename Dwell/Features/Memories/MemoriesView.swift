@@ -100,9 +100,11 @@ struct MemoriesView: View {
                 if !resurfaced.isEmpty {
                     ScrollView(.horizontal) {
                         HStack(spacing: Space.lg) {
-                            ForEach(resurfaced) { reflection in
+                            ForEach(Array(resurfaced.enumerated()), id: \.element.id) { index, reflection in
                                 Button { opened = reflection } label: {
-                                    OnThisDayCard(reflection: reflection, planArt: planArt)
+                                    OnThisDayCard(reflection: reflection,
+                                                  kind: index == 0 ? .onThisDay : .noteForLater,
+                                                  planArt: planArt)
                                 }
                                 .buttonStyle(PressScale())
                             }
@@ -129,9 +131,48 @@ struct MemoriesView: View {
 
                 pulseHistory
                     .padding(.horizontal, Space.gutter)
+
+                pastChallenges
+                    .padding(.horizontal, Space.gutter)
             }
             .padding(.top, Space.lg)
         }
+    }
+
+    // MARK: - Past challenges
+
+    /// Challenges this group has finished.
+    ///
+    /// Nothing is archived yet — `myGroup()` returns one group and a finished
+    /// challenge leaves no record (item 46a in Notion). So this lists the
+    /// current challenge only once it has actually ended, which is the only
+    /// honest source available. It fills out properly the moment an archive
+    /// endpoint exists.
+    @ViewBuilder
+    private var pastChallenges: some View {
+        if !finished.isEmpty {
+            VStack(alignment: .leading, spacing: Space.xl) {
+                Text("Past Challenges")
+                    .font(.dwellBodyMd)
+                    .foregroundStyle(t.textPrimary)
+
+                ForEach(finished) { challenge in
+                    PastChallengeRow(challenge: challenge)
+                }
+            }
+        }
+    }
+
+    private var finished: [PastChallengeRow.Challenge] {
+        guard let g = session.group.value ?? nil,
+              let plan = session.plan,
+              g.challengeStatus.isEnded else { return [] }
+        return [.init(id: g.id,
+                      title: plan.title,
+                      ended: session.days.map(\.date).max() ?? .now,
+                      mediaURLs: [],
+                      coverArt: planArt,
+                      totalCount: session.myReflections.count)]
     }
 
     // MARK: - What the group noticed

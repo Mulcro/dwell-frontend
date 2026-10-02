@@ -38,6 +38,7 @@ struct ProfileView: View {
                 VStack(alignment: .leading, spacing: Space.xl) {
                     header
                     identity
+                    statsStrip
                     groupCard
                 }
                 .padding(.horizontal, Space.gutter)
@@ -217,6 +218,53 @@ struct ProfileView: View {
                     .foregroundStyle(t.accent)
             }
         }
+    }
+
+    /// Where you stand in the challenge.
+    ///
+    /// The score is `leaderboard_entries.participation_score` — computed
+    /// server-side, so it is the one number here the client isn't deriving.
+    /// There are no rows until the first Monday 00:00 UTC, so that tile falls
+    /// back to days read, which is always true.
+    ///
+    /// Everything is read from what the session already holds; the version
+    /// this replaces cost one request per day just to count your own posts.
+    private var statsStrip: some View {
+        HStack(spacing: Space.md) {
+            if let score = session.myScore {
+                statTile("\(score)", session.myRank.map { "Score · #\($0)" } ?? "Score")
+            } else {
+                statTile("\(session.completedDayIds.count)", "Days read")
+            }
+            statTile("\(session.currentStreak)", "Day streak")
+            statTile("\(session.myReflections.count)", "Reflections")
+        }
+    }
+
+    private func statTile(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.dwellTitle)
+                .foregroundStyle(t.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Text(label)
+                .font(.dwellCaption)
+                .foregroundStyle(t.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Space.lg)
+        .background {
+            RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                .fill(.regularMaterial)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                .strokeBorder(t.border, lineWidth: 1)
+        )
     }
 
     private func fraction(_ day: Int, _ total: Int) -> CGFloat {

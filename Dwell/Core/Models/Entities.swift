@@ -304,12 +304,21 @@ struct PulsePayload: Codable, Hashable {
     var lede: String?
     var members: [PulseMember]?
     var reflectionCount: Int?
-    /// Present when a translation carries the summary too.
+    /// The translated standfirst. The contract names this `summary` inside a
+    /// `translated_text` value — `content` is only the untranslated column on
+    /// the row itself. Both are accepted so neither spelling silently yields
+    /// an untranslated summary.
+    var summary: String?
     var content: String?
 
     enum CodingKeys: String, CodingKey {
-        case headline, lede, members, content
+        case headline, lede, members, summary, content
         case reflectionCount = "reflection_count"
+    }
+
+    /// Whichever of the two the backend sent.
+    var standfirst: String? {
+        [summary, content].compactMap { $0 }.first { !$0.isEmpty }
     }
 }
 
@@ -348,7 +357,7 @@ struct AIInsight: Identifiable, Codable, Hashable {
     /// The summary, translated when a translation carries one.
     func summary(in viewerLanguage: String) -> String {
         if let language, language != viewerLanguage,
-           let translated = translatedText?[viewerLanguage]?.content,
+           let translated = translatedText?[viewerLanguage]?.standfirst,
            !translated.isEmpty { return translated }
         return content
     }

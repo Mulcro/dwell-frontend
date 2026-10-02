@@ -9,6 +9,11 @@
 3. Open a PR with `gh pr create`
 4. **Mulero verifies it works on a device, then merges.** Don't merge your own PRs.
 
+**One open PR at a time for related work.** If a PR is open and unmerged, further
+related changes go **onto that same branch**, not into a new PR. Stacking PRs on an
+unapproved branch makes the first one impossible to review and the second impossible to
+merge. Only open a second PR for work that is genuinely independent of the first.
+
 Push as you go rather than letting work pile up — the codebase is large enough that a
 single enormous diff is no longer reviewable.
 

@@ -284,51 +284,48 @@ final class SessionStore {
 
     var postedCount: Int { currentDay?.participationCount ?? 0 }
 
-    /// When the next reading opens, in the group's own timezone.
+    /// When the next reading appears.
     ///
-    /// Computed rather than read: a day instance is created when it opens, so
-    /// the next one doesn't exist yet to be asked. The rhythm decides which
-    /// dates count, and the group's timezone decides when midnight is — the
-    /// whole point of sending `timezone` at creation, and why this can't just
-    /// use `Calendar.current`.
+    /// **Not local midnight.** A day opens 24 hours after the *previous day
+    /// opened*, and only once that day is `threshold_met`. So whatever hour a
+    /// group's Day 1 opened becomes that group's boundary for the whole
+    /// challenge — which is deliberate: it guarantees every member a full 24
+    /// hours wherever they are, and stops a group racing through a 7-day plan
+    /// in an evening.
+    ///
+    /// Nil while the current day hasn't cleared its threshold, because then it
+    /// is waiting on people rather than on the clock and naming a time would be
+    /// the same class of wrong as the midnight assumption was.
     var nextDayOpensAt: Date? {
-        guard let g = group.value ?? nil, g.challengeStatus == .active else { return nil }
-        guard let zone = TimeZone(identifier: g.timezone ?? "UTC") else { return nil }
+        guard let g = group.value ?? nil, g.challengeStatus == .active,
+              let current = currentDay,
+              current.status == .thresholdMet || current.status == .complete
+        else { return nil }
+
+        let due = current.openedAt.addingTimeInterval(24 * 60 * 60)
+
+        // The rhythm still has to allow the day it lands on.
+        let weekdays = g.frequency == .custom ? (g.customDays ?? []) : g.frequency.impliedDays
+        guard !weekdays.isEmpty else { return due }
 
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = zone
-
-        let weekdays = g.frequency == .custom
-            ? (g.customDays ?? [])
-            : g.frequency.impliedDays
-        guard !weekdays.isEmpty else { return nil }
-
-        // Walk forward from tomorrow to the next date the rhythm includes.
-        // Eight days covers any weekly pattern.
-        let todayStart = calendar.startOfDay(for: .now)
-        for offset in 1...8 {
-            guard let candidate = calendar.date(byAdding: .day, value: offset, to: todayStart)
-            else { continue }
+        calendar.timeZone = TimeZone(identifier: g.timezone ?? "UTC") ?? .current
+        var candidate = due
+        for _ in 0...7 {
             // Calendar weekdays are Sunday = 1; the contract uses ISO, Monday = 1.
             let iso = (calendar.component(.weekday, from: candidate) + 5) % 7 + 1
-            if weekdays.contains(iso) { return calendar.startOfDay(for: candidate) }
+            if weekdays.contains(iso) { return candidate }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: candidate) else { break }
+            candidate = next
         }
-        return nil
+        return due
     }
 
-    /// Whether the day that should be open hasn't been created yet.
-    ///
-    /// Days are opened server-side; there is no endpoint the app can call. So
-    /// when the newest day instance is older than today in the group's own
-    /// timezone, the reading is overdue and saying "next opens tomorrow" would
-    /// be actively misleading.
-    var currentDayIsOverdue: Bool {
-        guard let g = group.value ?? nil, g.challengeStatus == .active,
-              let zone = TimeZone(identifier: g.timezone ?? "UTC"),
-              let newest = days.map(\.date).max() else { return false }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = zone
-        return calendar.startOfDay(for: newest) < calendar.startOfDay(for: .now)
+    /// Past due. A job sweeps every 15 minutes, so the day arrives shortly
+    /// rather than on the second.
+    var nextDayIsDue: Bool {
+        guard let due = nextDayOpensAt else { return false }
+        return due <= .now
     }
 
     /// "Tomorrow, 2:00 AM" — the group's moment, told in the reader's time.

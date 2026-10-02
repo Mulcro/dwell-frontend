@@ -316,6 +316,21 @@ final class SessionStore {
         return nil
     }
 
+    /// Whether the day that should be open hasn't been created yet.
+    ///
+    /// Days are opened server-side; there is no endpoint the app can call. So
+    /// when the newest day instance is older than today in the group's own
+    /// timezone, the reading is overdue and saying "next opens tomorrow" would
+    /// be actively misleading.
+    var currentDayIsOverdue: Bool {
+        guard let g = group.value ?? nil, g.challengeStatus == .active,
+              let zone = TimeZone(identifier: g.timezone ?? "UTC"),
+              let newest = days.map(\.date).max() else { return false }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = zone
+        return calendar.startOfDay(for: newest) < calendar.startOfDay(for: .now)
+    }
+
     /// "Tomorrow, 2:00 AM" — the group's moment, told in the reader's time.
     ///
     /// The *instant* comes from the group's timezone, because that is when the

@@ -409,7 +409,17 @@ struct HomeView: View {
     /// each be told a different answer to the same question.
     @ViewBuilder
     private var nextOpensNote: some View {
-        if let label = session.nextDayOpensLabel {
+        if session.currentDayIsOverdue {
+            HStack(spacing: Space.sm) {
+                Image(systemName: "clock.badge.exclamationmark")
+                    .font(.system(size: 12))
+                Text("Today's reading hasn't opened yet. Pull down to check again.")
+                    .font(.dwellCaption)
+                    .multilineTextAlignment(.center)
+            }
+            .foregroundStyle(t.textSecondary)
+            .padding(.top, Space.sm)
+        } else if let label = session.nextDayOpensLabel {
             HStack(spacing: Space.sm) {
                 Image(systemName: "clock")
                     .font(.system(size: 12))

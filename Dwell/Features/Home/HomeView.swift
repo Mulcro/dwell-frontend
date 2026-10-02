@@ -311,22 +311,41 @@ struct HomeView: View {
     /// post. The old copy only ever described the first, so once the group had
     /// cleared it the sentence contradicted itself — "4 friends are in, it
     /// opens once 1 have responded".
-    /// Where you stand, on the home screen rather than buried in Profile.
+    /// Three readings of how the challenge is going — deliberately not a
+    /// scoreboard.
     ///
-    /// The score is `leaderboard_entries.participation_score` — computed
-    /// server-side, so it's the one number here the client isn't deriving.
-    /// Until the first Monday 00:00 UTC there are no rows, so that tile falls
-    /// back to days read, which is always true.
+    /// The team chose a recap-style leaderboard over a live one precisely to
+    /// keep competition out of the daily loop, so `participation_score` is
+    /// saved for the weekly recap rather than shown on Home every day. These
+    /// are the group's progress, your own rhythm, and what the writing has
+    /// actually been about.
     private var statsStrip: some View {
         HStack(spacing: Space.md) {
-            if let score = session.myScore {
-                statTile("\(score)", session.myRank.map { "Score · #\($0)" } ?? "Score")
-            } else {
-                statTile("\(session.completedDayIds.count)", "Days read")
-            }
+            statTile("\(daysCleared)/\(session.days.count)", "Days together")
             statTile("\(session.currentStreak)", "Day streak")
-            statTile("\(session.myReflections.count)", "Reflections")
+            statTile(mood ?? "\(session.myReflections.count)",
+                     mood == nil ? "Reflections" : "Your tone")
         }
+    }
+
+    /// Days the group got over the line, not days you personally posted —
+    /// the product is about the crew arriving, and nobody is singled out.
+    private var daysCleared: Int {
+        session.days.filter { $0.status == .thresholdMet || $0.status == .complete }.count
+    }
+
+    /// The most frequent `sentiment_tag` across your own reflections.
+    ///
+    /// The backend has tagged every reflection since the start and nothing has
+    /// ever displayed one. It is the most interesting number on this screen
+    /// precisely because it isn't a number — "Hopeful" says more about a week
+    /// of reading than a count of posts does.
+    private var mood: String? {
+        let tags = session.myReflections.compactMap(\.sentimentTag).filter { !$0.isEmpty }
+        guard tags.count >= 2 else { return nil }
+        let counts = Dictionary(tags.map { ($0, 1) }, uniquingKeysWith: +)
+        guard let top = counts.max(by: { $0.value < $1.value })?.key else { return nil }
+        return top.prefix(1).uppercased() + top.dropFirst()
     }
 
     private func statTile(_ value: String, _ label: String) -> some View {
@@ -334,11 +353,13 @@ struct HomeView: View {
             Text(value)
                 .font(.dwellTitle)
                 .foregroundStyle(t.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
             Text(label)
                 .font(.dwellCaption)
                 .foregroundStyle(t.textSecondary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, Space.lg)

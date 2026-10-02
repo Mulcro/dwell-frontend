@@ -16,3 +16,10 @@ figma-*.json
 
 # Local secrets
 Config/Secrets.xcconfig
+
+# Documentation lives in Notion — see CLAUDE.md. These were local copies that
+# drifted the moment Notion was updated.
+BACKEND-REQUESTS.md
+DESIGN-GAPS.md
+FOR-BACKEND.md
+INTERACTION-GAPS.md

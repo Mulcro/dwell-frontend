@@ -6,10 +6,19 @@ struct HomeView: View {
 
     @State private var postedNames: [String] = []
     @State private var showReflect = false
+    @State private var reflectStart: DayFlow.Stage = .reading
+    @State private var showFeed = false
+    @State private var showPulse = false
     @State private var nudging = false
 
     private var group: DwellGroup? { session.group.value ?? nil }
     private var state: HomeState { HomeState.resolve(session) }
+
+    /// Cover art for the current plan, if the catalogue has any.
+    private var planArt: URL? {
+        guard let path = session.plan?.imagePath else { return nil }
+        return session.api.planImageURL(path: path)
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -25,6 +34,12 @@ struct HomeView: View {
                     WeekStrip(days: session.days)
                         .padding(.top, Space.xl)
 
+                    nudgeBanner
+                        .padding(.top, Space.lg)
+
+                    pulseCard
+                        .padding(.top, Space.lg)
+
                     body(for: state)
                         .padding(.top, Space.xl)
                 }
@@ -35,6 +50,38 @@ struct HomeView: View {
         }
         .task(id: session.currentDay?.id) { await loadPosters() }
         .refreshable { await session.reload() }
+        .fullScreenCover(isPresented: $showPulse) {
+            if let pulse = session.visiblePulse {
+                GroupPulseView(insight: pulse,
+                               onClose: { showPulse = false },
+                               onOpenFeed: {
+                                   showPulse = false
+                                   // Two full-screen covers can't swap in the
+                                   // same frame — the second is dropped — so
+                                   // the feed waits for the dismissal.
+                                   Task {
+                                       try? await Task.sleep(for: .milliseconds(350))
+                                       showFeed = true
+                                   }
+                               })
+            }
+        }
+        // DWELL_REFLECT=1 opens the composer straight away, for screenshots.
+        .task {
+            if ProcessInfo.processInfo.environment["DWELL_REFLECT"] == "1" { showReflect = true }
+            if ProcessInfo.processInfo.environment["DWELL_FEED"] == "1" { showFeed = true }
+        }
+        .fullScreenCover(isPresented: $showFeed) {
+            FeedView(onClose: { showFeed = false })
+        }
+        .fullScreenCover(isPresented: $showReflect) {
+            DayFlow(startAt: reflectStart, onClose: {
+                showReflect = false
+                // The day's participation count and your own reflection both
+                // change on post, and the router reads them.
+                Task { await session.reload() }
+            })
+        }
     }
 
     // MARK: - States
@@ -63,7 +110,7 @@ struct HomeView: View {
     /// Day open, nothing posted yet — the plan is the subject.
     private var readyCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            PlanCover(title: session.plan?.title ?? "Your plan")
+            PlanCover(title: session.plan?.title ?? "Your plan", imageURL: planArt)
                 .frame(height: 210)
                 .clipped()
 
@@ -83,17 +130,26 @@ struct HomeView: View {
                     .foregroundStyle(t.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                HStack(spacing: Space.sm) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 15))
-                        .foregroundStyle(t.textSecondary)
-                    Text("Add to today's reflection")
-                        .font(.dwellBody)
-                        .foregroundStyle(t.textSecondary)
+                // Skips the reading for someone who has already read today.
+                Button {
+                    reflectStart = .reflecting
+                    showReflect = true
+                } label: {
+                    HStack(spacing: Space.sm) {
+                        Image(systemName: "square.and.pencil")
+                            .font(.system(size: 15))
+                            .foregroundStyle(t.textSecondary)
+                        Text("Add to today's reflection")
+                            .font(.dwellBody)
+                            .foregroundStyle(t.textSecondary)
+                        Spacer()
+                    }
                 }
+                .buttonStyle(PressScale())
                 .padding(.top, Space.xs)
 
                 PrimaryButton(title: "Start Reflection", accent: true) {
+                    reflectStart = .reading
                     showReflect = true
                 }
                 .padding(.top, Space.md)
@@ -110,7 +166,7 @@ struct HomeView: View {
 
     private var sealedNotice: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
-            Text("Today's reflections are sealed")
+            Text(sealedTitle)
                 .font(.dwellBodyMd)
                 .foregroundStyle(t.textPrimary)
             Text(sealedDetail)
@@ -150,6 +206,7 @@ struct HomeView: View {
             }
 
             yourReflectionRow
+            nextOpensNote
         }
         .frame(maxWidth: .infinity)
     }
@@ -157,8 +214,9 @@ struct HomeView: View {
     /// Threshold cleared — the day is readable.
     private func open(posted: Int, total: Int) -> some View {
         VStack(spacing: Space.lg) {
-            ReflectionCardStack(sealed: false)
-
+            // No card stack here. Sealed, it stands for reflections you can't
+            // read yet; open, it's a skeleton of content that exists and is
+            // one tap away — which reads as something failing to load.
             Text("Today's reflections are open")
                 .font(.dwellCardTitle)
                 .foregroundStyle(t.textPrimary)
@@ -171,9 +229,10 @@ struct HomeView: View {
                 .lineSpacing(LineSpacing.body)
                 .fixedSize(horizontal: false, vertical: true)
 
-            PrimaryButton(title: "Read reflections", accent: true) { }
+            PrimaryButton(title: "Read reflections", accent: true) { showFeed = true }
 
             yourReflectionRow
+            nextOpensNote
         }
         .frame(maxWidth: .infinity)
     }
@@ -207,7 +266,10 @@ struct HomeView: View {
     private var yourReflectionRow: some View {
         if let mine = session.myReflection {
             YourReflectionRow(postedAgo: relativeAge(mine.createdAt),
-                              isLate: mine.isLate)
+                              planTitle: session.plan?.title ?? "",
+                              planArt: planArt,
+                              isLate: mine.isLate,
+                              onView: { showFeed = true })
         }
     }
 
@@ -227,13 +289,164 @@ struct HomeView: View {
         return "Day \(day) of \(session.plan?.dayCount ?? day)"
     }
 
+    /// How many more approved reflections the day still needs. Zero means the
+    /// group has already cleared it — the day is only locked for *you*,
+    /// because you haven't posted.
+    private var stillNeeded: Int {
+        max(session.requiredToUnlock - session.postedCount, 0)
+    }
+
+    /// Deliberately not "Everyone's waiting on you" — the product never
+    /// surfaces anyone as holding the group up, and an invitation reads better
+    /// than an obligation.
+    private var sealedTitle: String {
+        stillNeeded == 0
+            ? "Don't miss out!"
+            : "Today's reflections are sealed"
+    }
+
+    /// Unlocking takes both halves: the group clears the threshold *and* you
+    /// post. The old copy only ever described the first, so once the group had
+    /// cleared it the sentence contradicted itself — "4 friends are in, it
+    /// opens once 1 have responded".
+    /// Entry point to the day's synthesis. Only exists once the day has
+    /// opened — before that there is nothing to synthesise.
+    @ViewBuilder
+    private var pulseCard: some View {
+        if let pulse = session.visiblePulse {
+            Button { showPulse = true } label: {
+                HStack(spacing: Space.md) {
+                    ZStack {
+                        Circle().fill(t.accent.opacity(0.15))
+                        Image(systemName: "sparkle")
+                            .font(.system(size: 15))
+                            .foregroundStyle(t.accent)
+                    }
+                    .frame(width: 32, height: 32)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Group Pulse")
+                            .font(.dwellBodyMd)
+                            .foregroundStyle(t.accent)
+                        Text(pulsePreview(pulse))
+                            .font(.dwellBody)
+                            .foregroundStyle(t.textPrimary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(t.textPrimary)
+                }
+                .padding(Space.lg)
+                .background(t.accent.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                        .strokeBorder(t.accent.opacity(0.35), lineWidth: 1)
+                )
+            }
+            .buttonStyle(PressScale())
+        }
+    }
+
+    /// The headline where one exists, otherwise the summary — both in the
+    /// reader's language. Reading `content` directly showed the original to
+    /// someone whose full pulse would have been translated.
+    private func pulsePreview(_ pulse: AIInsight) -> String {
+        let language = session.me?.preferredLanguage ?? "en"
+        if let headline = pulse.payload(in: language)?.headline, !headline.isEmpty {
+            return headline
+        }
+        return pulse.summary(in: language)
+    }
+
+    /// The companion's nudge, which until now was written to the database
+    /// every time and shown nowhere.
+    @ViewBuilder
+    private var nudgeBanner: some View {
+        if let nudge = session.visibleNudge {
+            HStack(alignment: .top, spacing: Space.md) {
+                ZStack {
+                    Circle().fill(t.accent.opacity(0.15))
+                    Image(systemName: "sparkle")
+                        .font(.system(size: 14))
+                        .foregroundStyle(t.accent)
+                }
+                .frame(width: 30, height: 30)
+
+                Text(nudge.content)
+                    .font(.dwellBody)
+                    .lineSpacing(LineSpacing.small)
+                    .foregroundStyle(t.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 0)
+
+                Button { session.dismissNudge() } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(t.textSecondary)
+                }
+                .buttonStyle(PressScale())
+            }
+            .padding(Space.lg)
+            .background(t.accent.opacity(0.06))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                    .strokeBorder(t.accent.opacity(0.35), lineWidth: 1)
+            )
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    /// Quiet line telling you when the next reading lands.
+    ///
+    /// Shown in the group's timezone, not the reader's, so everyone in the
+    /// crew sees the same moment — a group spanning timezones would otherwise
+    /// each be told a different answer to the same question.
+    @ViewBuilder
+    private var nextOpensNote: some View {
+        if session.nextDayIsDue {
+            HStack(spacing: Space.sm) {
+                Image(systemName: "clock")
+                    .font(.system(size: 12))
+                Text("The next reading is opening shortly.")
+                    .font(.dwellCaption)
+            }
+            .foregroundStyle(t.textSecondary)
+            .padding(.top, Space.sm)
+        } else if let label = session.nextDayOpensLabel {
+            HStack(spacing: Space.sm) {
+                Image(systemName: "clock")
+                    .font(.system(size: 12))
+                Text("Next reading opens \(label)")
+                    .font(.dwellCaption)
+            }
+            .foregroundStyle(t.textSecondary)
+            .padding(.top, Space.sm)
+        }
+    }
+
     private var sealedDetail: String {
         let posted = session.postedCount
-        let needed = max(session.requiredToUnlock, 1)
-        guard posted > 0 else {
-            return "Nobody's posted yet. It opens once \(needed) have responded — yours could be the first."
+
+        guard stillNeeded > 0 else {
+            return "The day is open. Add yours to read what everyone else wrote."
         }
-        return "\(posted) \(posted == 1 ? "friend is" : "friends are") in. It opens once \(needed) have responded. Yours could be the one."
+
+        guard posted > 0 else {
+            return stillNeeded == 1
+                ? "Nobody's posted yet. One reflection opens the day — it could be yours."
+                : "Nobody's posted yet. It opens once \(stillNeeded) of you have — yours could be the first."
+        }
+
+        let who = posted == 1 ? "1 friend is in" : "\(posted) friends are in"
+        return stillNeeded == 1
+            ? "\(who). One more opens the day — yours could be the one."
+            : "\(who). \(stillNeeded) more open the day — yours could be one of them."
     }
 
     private func openDetail(posted: Int, total: Int) -> String {
@@ -243,11 +456,19 @@ struct HomeView: View {
         return "\(who) in. \(remaining) more can still add theirs today."
     }
 
+    /// Names two people and counts the rest.
+    ///
+    /// A full list grew with the group and pushed the sentence onto three
+    /// lines at seven members — and the names after the first couple carry no
+    /// information the count doesn't.
     private func listed(_ names: [String]) -> String {
         switch names.count {
         case 0: return "You"
         case 1: return "\(names[0]) and you"
-        default: return names.dropLast().joined(separator: ", ") + ", \(names[names.count - 1]) and you"
+        case 2: return "\(names[0]), \(names[1]) and you"
+        default:
+            let others = names.count - 2
+            return "\(names[0]), \(names[1]) and \(others) other\(others == 1 ? "" : "s")"
         }
     }
 
@@ -258,14 +479,14 @@ struct HomeView: View {
     /// `participation_count` is a bare number with no identities — so marking
     /// specific friends as done would be a guess. Only your own tick is real
     /// until the day opens; the count in the pill carries the rest.
-    private var avatarRow: [(name: String, posted: Bool)] {
+    private var avatarRow: [(name: String, url: URL?, posted: Bool)] {
         session.members.map { member in
             let name = session.memberProfiles[member.userId]?.name ?? "Member"
             let isMe = member.userId == session.me?.id
             let posted = isMe
                 ? session.myReflection?.moderationStatus == .approved
                 : postedNames.contains(where: { name.hasPrefix($0) })
-            return (name, posted)
+            return (name, session.avatarURL(for: member.userId), posted)
         }
     }
 

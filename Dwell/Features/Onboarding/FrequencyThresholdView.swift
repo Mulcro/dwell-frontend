@@ -63,7 +63,7 @@ struct FrequencyThresholdView: View {
                             ThresholdStepper(percent: $threshold)
                             Text("Half the group has to post before anyone can read the day. Raise it for a tighter group, lower it if people travel.")
                                 .font(.dwellCaption)
-                                .lineSpacing(3)
+                                .lineSpacing(LineSpacing.small)
                                 .foregroundStyle(t.textSecondary)
                         }
 

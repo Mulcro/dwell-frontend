@@ -6,7 +6,10 @@ struct DwellApp: App {
     /// Only present on the mock backend — drives the debug scenario switcher.
     @State private var mock: MockDwellAPI?
 
+    @MainActor
     init() {
+        YouVersionReader.configure(appKey: DwellConfig.youVersionAppKey)
+
 
         // Real backend when Secrets.xcconfig carries a publishable key,
         // the mock otherwise. DWELL_FORCE_MOCK=1 pins it to the mock.

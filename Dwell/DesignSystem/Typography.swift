@@ -59,15 +59,23 @@ extension Font {
 /// Figma gives absolute line heights; SwiftUI's `lineSpacing` is *extra*
 /// space on top of the font's own line height (≈1.2× size for SF). These are
 /// the difference, which is why most of them are zero.
+/// Extra space between lines, in points — SwiftUI's `lineSpacing` is additive,
+/// not a multiplier.
+///
+/// Running text in the app is **double spaced**: a 16pt line is about 19pt
+/// tall, so adding ~19 doubles it. Headings keep the Figma's tight leading —
+/// double-spacing a two-line title pulls it apart rather than making it
+/// readable. The Bible reader is YouVersion's own component and sets its own
+/// leading; nothing here affects it.
 enum LineSpacing {
-    /// 48pt, lh 57.6 → 57.6 − 57.6
+    /// 48pt display — Figma leading, untouched.
     static let hero: CGFloat = 0
-    /// 32pt, lh 38.4 → 38.4 − 38.4
+    /// 32pt title — Figma leading, untouched.
     static let title: CGFloat = 0
-    /// 24pt, lh 28.8 → 28.8 − 28.8
-    static let cardTitle: CGFloat = 0
-    /// 16pt, lh 22.4 → 22.4 − 19.2
-    static let body: CGFloat = 3.2
-    /// 14pt, lh 19.6 → 19.6 − 16.8
-    static let small: CGFloat = 2.8
+    /// 24pt card title — opened slightly, not doubled.
+    static let cardTitle: CGFloat = 4
+    /// 16pt body, ~19pt line → doubled.
+    static let body: CGFloat = 19
+    /// 14pt small, ~17pt line → doubled.
+    static let small: CGFloat = 17
 }

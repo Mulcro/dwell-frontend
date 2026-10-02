@@ -45,6 +45,15 @@ struct StartOrJoinView: View {
             .padding(.bottom, Space.xl)
         }
         .dwellThemed()
+        // A magic link (dwell://join/4K9QRT) lands the code here rather than
+        // making someone retype what they just tapped. RootView parks it on
+        // the session; this is the only place that consumes it.
+        .task(id: session.pendingInviteToken) {
+            guard let token = session.pendingInviteToken else { return }
+            session.pendingInviteToken = nil
+            code = token
+            await lookUp(token)
+        }
     }
 
     /// The create path is the louder of the two — sky behind it, a cluster of
@@ -137,7 +146,12 @@ struct StartOrJoinView: View {
         do {
             _ = try await session.api.joinGroup(inviteToken: code)
             Haptics.posted()
-            await session.bootstrap()
+            // Deliberately does NOT bootstrap here. Loading the group before
+            // the flow has marked itself still-running makes the router flip
+            // to .home and straight back to .onboarding, which rebuilds this
+            // whole flow and resets its step — landing the user back on this
+            // screen with an empty code field. The caller sets the flag first,
+            // then reloads.
             onJoined()
         } catch {
             Haptics.warning()

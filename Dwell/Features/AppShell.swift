@@ -4,23 +4,34 @@ import SwiftUI
 /// scroll view keeps its own bottom inset rather than the bar eating content.
 struct AppShell: View {
     @Environment(SessionStore.self) private var session
-    @State private var tab: DwellTab = .home
+    /// DWELL_TAB=<home|reading|memories|profile> opens straight onto a tab,
+    /// for screenshots. Same pattern as DWELL_STEP in onboarding.
+    @State private var tab: DwellTab = DwellTab(
+        rawValue: ProcessInfo.processInfo.environment["DWELL_TAB"] ?? "") ?? .home
 
     var body: some View {
         ZStack(alignment: .bottom) {
             Group {
                 switch tab {
-                case .home:     HomeView()
-                case .reading:  ReadingPlaceholder()
-                case .memories: MemoriesPlaceholder()
-                case .profile:  ProfilePlaceholder()
+                // The stalled-group question replaces Home rather than
+                // sitting inside it: any member's answer binds the group, so
+                // it shouldn't be scrollable past.
+                case .home:
+                    if session.showsStalledPrompt {
+                        StalledGroupView()
+                    } else {
+                        HomeView()
+                    }
+                case .reading:  ReadingView()
+                case .memories: MemoriesView()
+                case .profile:  ProfileView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             DwellTabBar(selection: $tab,
                         avatarName: session.me?.name ?? "You",
-                        avatarURL: AvatarStore.shared.url)
+                        avatarURL: session.me.map { session.avatarURL(for: $0.id) } ?? nil)
                 .padding(.bottom, Space.sm)
         }
         .dwellThemed()
@@ -32,37 +43,4 @@ enum TabBarMetrics {
     static let clearance: CGFloat = 96
 }
 
-// MARK: - Placeholders for tabs landing in later phases
 
-private struct ReadingPlaceholder: View {
-    var body: some View {
-        EmptyStateView(title: "Reading",
-                       message: "Plan overview, devotional and passage land in Phase 2.")
-    }
-}
-
-private struct MemoriesPlaceholder: View {
-    var body: some View {
-        EmptyStateView(title: "Memories",
-                       message: "Overview and calendar land in Phase 8.")
-    }
-}
-
-private struct ProfilePlaceholder: View {
-    @Environment(SessionStore.self) private var session
-    var body: some View {
-        VStack(spacing: Space.lg) {
-            EmptyStateView(title: "Profile",
-                           message: "Profile and settings land in Phase 8.")
-            SecondaryButton(title: "Sign out") {
-                Task {
-                    try? await session.api.signOut()
-                    session.finishOnboarding()
-                    await session.bootstrap()
-                }
-            }
-            .padding(.horizontal, Space.gutter)
-            .padding(.bottom, TabBarMetrics.clearance)
-        }
-    }
-}

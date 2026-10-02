@@ -6,13 +6,17 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.dwell.app.invite</string>
+			<string>com.mulero.dwell.invite</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>dwell</string>
 			</array>
 		</dict>
 	</array>
+	<key>SUPABASE_PUBLISHABLE_KEY</key>
+	<string>$(SUPABASE_PUBLISHABLE_KEY)</string>
+	<key>SUPABASE_URL</key>
+	<string>$(SUPABASE_URL)</string>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
@@ -20,9 +24,5 @@
 	</dict>
 	<key>YOUVERSION_APP_KEY</key>
 	<string>$(YOUVERSION_APP_KEY)</string>
-	<key>SUPABASE_URL</key>
-	<string>$(SUPABASE_URL)</string>
-	<key>SUPABASE_PUBLISHABLE_KEY</key>
-	<string>$(SUPABASE_PUBLISHABLE_KEY)</string>
 </dict>
 </plist>

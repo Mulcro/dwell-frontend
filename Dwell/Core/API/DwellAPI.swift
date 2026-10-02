@@ -22,6 +22,22 @@ protocol DwellAPI {
     func signUp(email: String, password: String, name: String?) async throws -> DwellUser
     func signOut() async throws
 
+    /// POST /delete-account. Erases the account in the JWT — there is
+    /// deliberately no way to name another user. Required by App Store
+    /// guideline 5.1.1(v) for any app offering account creation.
+    func deleteAccount() async throws
+
+    /// Uploads a profile picture and runs it through moderation.
+    ///
+    /// Neither avatar column is writable directly — a PATCH on `users`
+    /// touching them is refused — because it used to be possible to point
+    /// `avatar_url` at any image on the internet. This is the only way in.
+    /// Throws `.moderationRefused` on 422.
+    func setAvatar(fileURL: URL, mime: String) async throws -> String
+
+    /// Signed URL for an object in the private `avatars` bucket.
+    func avatarURL(path: String) async throws -> URL
+
     // MARK: - §1.1 Client-facing Edge Functions
 
     /// POST /create-group → group in `forming` + a group_members row for the creator.
@@ -50,7 +66,8 @@ protocol DwellAPI {
                           mediaType: MediaType,
                           content: String?,
                           transcript: String?,
-                          language: String) async throws -> SubmitReflectionResponse
+                          language: String,
+                          attachment: MediaAttachment?) async throws -> SubmitReflectionResponse
 
     /// POST /group-challenge-action — the Continue / Pause / End response.
     func groupChallengeAction(groupId: UUID,
@@ -79,8 +96,29 @@ protocol DwellAPI {
     /// the mock reproduces the same rule so the UI can't drift.
     func reflections(dayInstanceId: UUID) async throws -> [Reflection]
 
+    /// Every reflection *you* have posted in this group's challenge.
+    ///
+    /// RLS always lets you read your own rows, whatever the day's state, so
+    /// this works for sealed days too — unlike `reflections(dayInstanceId:)`,
+    /// which is about what the group can see.
+    func myReflections(groupId: UUID) async throws -> [Reflection]
+
     func comments(reflectionId: UUID) async throws -> [Comment]
-    func addComment(reflectionId: UUID, content: String) async throws -> Comment
+    /// Posts a reply through `submit-comment`, which moderates it. Throws
+    /// `.moderationRefused` when it's declined — nothing is written in that
+    /// case, so there is no flagged row to reconcile.
+    func addComment(reflectionId: UUID, content: String,
+                    attachment: MediaAttachment?, transcript: String?,
+                    language: String) async throws
+
+    /// Whether replies can carry audio or a photo yet.
+    ///
+    /// Probed rather than assumed: the client is ready, the `comments` table
+    /// isn't, and shipping buttons that post into a column that doesn't exist
+    /// would lose someone's reply silently. When this is false the composer
+    /// offers text only, and it starts offering media the moment the backend
+    /// lands — no client release needed.
+    func commentMediaSupported() async -> Bool
 
     func reactions(reflectionId: UUID) async throws -> [Reaction]
     func addReaction(reflectionId: UUID, emoji: String) async throws -> Reaction
@@ -98,7 +136,25 @@ protocol DwellAPI {
     /// ai_insights inserts for the group — nudges, pulse, end summaries.
     func insightInserts(groupId: UUID) -> AsyncStream<AIInsight>
 
+    /// `groups` and `group_members` joined the publication on 2026-10-01, so a
+    /// member joining and `forming` → `active` now arrive on their own.
+    ///
+    /// Emits a bare signal rather than a row: the contract warns that a single
+    /// insert was observed delivering twice, so this means "re-read", never
+    /// "increment".
+    func membershipChanges(groupId: UUID) -> AsyncStream<Void>
+
     // MARK: - §3.4 Mock PlanService
+
+    /// Public URL for an object in the `plan-images` bucket. The bucket is
+    /// public — catalogue art, identical for everyone — so no signing is
+    /// needed and normal HTTP caching applies.
+    func planImageURL(path: String) -> URL?
+
+    /// Signed URL for a reflection's audio or photo — they share the private
+    /// `reflection-media` bucket on purpose, so both inherit the same unlock
+    /// rule as the reflection row.
+    func mediaURL(path: String) async throws -> URL
 
     func listPlans() async throws -> [PlanChallenge]
     func getPlan(id: UUID) async throws -> PlanChallenge
@@ -135,6 +191,59 @@ enum AuthProvider: String, Codable, Hashable, CaseIterable, Identifiable {
     /// secret at all. The screens are built either way; this decides which
     /// call actually fires.
     var isAvailableInMVP: Bool { self == .google || self == .email || self == .youversion }
+}
+
+/// What a reflection carries besides words.
+///
+/// Modelled as one choice rather than two optionals because the contract
+/// rejects the wrong combination: a photo sent with `media_duration_seconds`
+/// or `media_peaks` is a 400, and so is a voice note without a duration.
+enum MediaAttachment: Equatable {
+    case voice(Recording)
+    case photo(fileURL: URL, mime: String)
+
+    var fileURL: URL {
+        switch self {
+        case .voice(let recording): return recording.fileURL
+        case .photo(let url, _):    return url
+        }
+    }
+
+    var mime: String {
+        switch self {
+        case .voice(let recording): return recording.mime
+        case .photo(_, let mime):   return mime
+        }
+    }
+
+    /// Extension for the object key — the bucket is shared, so the suffix is
+    /// what distinguishes them.
+    var pathExtension: String {
+        switch self {
+        case .voice: return "m4a"
+        case .photo(_, let mime): return mime == "image/png" ? "png" : "jpg"
+        }
+    }
+}
+
+/// A recorded voice note, ready to upload.
+///
+/// Uploaded to `reflection-media/{user id}/{uuid}.m4a` with the user's own
+/// token — the storage policy only permits writes inside your own folder —
+/// and then named in the submit call.
+struct Recording: Equatable {
+    let fileURL: URL
+    let durationSeconds: Int
+    let mime: String
+    /// 1–512 whole numbers, 0–100. Optional.
+    let peaks: [Int]
+
+    init(fileURL: URL, durationSeconds: Int, peaks: [Int], mime: String = "audio/mp4") {
+        self.fileURL = fileURL
+        self.durationSeconds = durationSeconds
+        self.peaks = peaks
+        self.mime = mime
+    }
 }
 
 // MARK: - Response envelopes
@@ -228,6 +337,7 @@ enum DwellError: LocalizedError, Equatable {
     case aiUnavailable                    // 502
     case notImplemented(String)
     case network(String)
+    case moderationRefused(String)
 
     /// Error bodies are not uniform: Edge Functions return `{ "error": … }`,
     /// PostgREST returns `{ code, details, hint, message }`. Read `error`
@@ -259,6 +369,7 @@ enum DwellError: LocalizedError, Equatable {
         case .planHasNoDays:         return "This plan has no days set up yet."
         case .aiUnavailable:         return "We couldn't reach the companion just now. Nothing was saved — try again."
         case .notImplemented(let w): return "\(w) isn't wired up yet."
+        case .moderationRefused(let m): return m
         case .network(let m):        return m
         }
     }

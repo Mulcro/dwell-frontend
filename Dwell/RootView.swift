@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct RootView: View {
     @Environment(SessionStore.self) private var session
@@ -22,6 +23,14 @@ struct RootView: View {
         .task { await boot() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, !showSplash { Task { await session.reload() } }
+        }
+        // Midnight, a timezone change, or the clock being set. Returning to
+        // the foreground already reloads, but an app left open across midnight
+        // never did — so every screen reading `session.days` kept yesterday's
+        // dates while Home, which derives the marker from `Date.now`, moved on.
+        .onReceive(NotificationCenter.default.publisher(
+            for: UIApplication.significantTimeChangeNotification)) { _ in
+            Task { await session.reload() }
         }
         .onOpenURL { url in
             if let token = InviteLink.token(from: url) {

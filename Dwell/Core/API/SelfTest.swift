@@ -42,7 +42,7 @@ enum SelfTest {
             }
 
             let plans = try await api.listPlans()
-            log("✅ listPlans — \(plans.count): \(plans.map(\.title).joined(separator: " | "))")
+            log("✅ listPlans — \(plans.count): " + plans.map { "\($0.title) [img=\($0.imagePath ?? "nil")]" }.joined(separator: " | "))
 
             if let first = plans.first {
                 let days = try await api.getPlanDays(planId: first.id)
@@ -50,7 +50,7 @@ enum SelfTest {
             }
 
             let passage = try await api.passage(ref: "HEB.6.19")
-            log("✅ get-passage — \(passage.reference) [\(passage.translation)] cached=\(passage.cached) \(passage.content.prefix(48))…")
+            log("✅ get-passage — \(passage.reference) [\(passage.translation) id=\(passage.bibleId)] cached=\(passage.cached) \(passage.content.prefix(40))…")
 
             guard let group = try await api.myGroup() else {
                 log("⚠️  myGroup — none for this account")

@@ -42,7 +42,7 @@ Launch straight into one:
 
 ```sh
 SIMCTL_CHILD_DWELL_SCENARIO="Day unlocked — feed" \
-  xcrun simctl launch booted com.dwell.app
+  xcrun simctl launch booted com.mulero.dwell
 ```
 
 ## Architecture

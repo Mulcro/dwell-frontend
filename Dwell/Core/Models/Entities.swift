@@ -9,12 +9,24 @@ struct DwellUser: Identifiable, Codable, Hashable {
     var preferredLanguage: String
     var timezone: String
     var pushToken: String?
+    /// Added backend-side 2026-10-01 and backfilled. Populated by
+    /// `handle_new_auth_user` from the provider's `avatar_url` or `picture`,
+    /// and writable through the existing "update own profile" policy.
+    /// Readable for group-mates, which is what finally lets the app show
+    /// anyone's face but your own.
+    var avatarUrl: URL?
+    /// Object key in the private `avatars` bucket, set only by `/set-avatar`
+    /// after moderation. Preferred over `avatarUrl` when present — that one is
+    /// whatever the identity provider happened to have, and nothing checked it.
+    var avatarPath: String?
     var createdAt: Date
 
     enum CodingKeys: String, CodingKey {
         case id, name, timezone
         case preferredLanguage = "preferred_language"
         case pushToken = "push_token"
+        case avatarUrl = "avatar_url"
+        case avatarPath = "avatar_path"
         case createdAt = "created_at"
     }
 }
@@ -26,6 +38,9 @@ struct PlanChallenge: Identifiable, Codable, Hashable {
     var dayCount: Int
     var youversionPlanId: String?
     var youversionDeepLink: String?
+    /// Object key in the **public** `plan-images` bucket — a key, not a URL,
+    /// so the same row works against local and hosted projects.
+    var imagePath: String?
 
     enum CodingKeys: String, CodingKey {
         case id, title
@@ -33,6 +48,7 @@ struct PlanChallenge: Identifiable, Codable, Hashable {
         case dayCount = "day_count"
         case youversionPlanId = "youversion_plan_id"
         case youversionDeepLink = "youversion_deep_link"
+        case imagePath = "image_path"
     }
 }
 
@@ -147,6 +163,15 @@ struct Reflection: Identifiable, Codable, Hashable {
     var sentimentTag: String?
     var moderationStatus: ModerationStatus
     var isLate: Bool
+    /// Object key in the private `reflection-media` bucket, shaped
+    /// `{user_id}/{uuid}.m4a`. Playback goes through `createSignedUrl`, which
+    /// applies the same unlock rule as the row itself.
+    var mediaPath: String?
+    var mediaMime: String?
+    var mediaDurationSeconds: Int?
+    /// 1–512 whole numbers, each 0–100 — lets the waveform be drawn without
+    /// downloading and decoding the audio.
+    var mediaPeaks: [Int]?
     var createdAt: Date
 
     /// The per-reflection companion response. Backend Design Doc §1.1 says
@@ -164,12 +189,19 @@ struct Reflection: Identifiable, Codable, Hashable {
         case sentimentTag = "sentiment_tag"
         case moderationStatus = "moderation_status"
         case isLate = "is_late"
+        case mediaPath = "media_path"
+        case mediaMime = "media_mime"
+        case mediaDurationSeconds = "media_duration_seconds"
+        case mediaPeaks = "media_peaks"
         case createdAt = "created_at"
         case aiResponse = "ai_response"
     }
 
     /// What the reader sees: transcript for voice, content for text.
     var displayBody: String { transcript ?? content ?? "" }
+
+    /// True when there is a recording to play.
+    var hasRecording: Bool { mediaPath?.isEmpty == false }
 
     /// Only approved reflections count toward the threshold (§4.2).
     var countsTowardThreshold: Bool { moderationStatus == .approved }
@@ -179,15 +211,58 @@ struct Comment: Identifiable, Codable, Hashable {
     let id: UUID
     var reflectionId: UUID
     var userId: UUID
-    var content: String
+    /// Null on a voice reply, which carries its words in `transcript` — the
+    /// same split `Reflection` uses.
+    var content: String?
     var createdAt: Date
 
+    // Replies are text-only on the backend as of 2026-10-02; these are all
+    // optional so the row decodes unchanged either way, and light up the moment
+    // the columns exist. See the media-replies request in Notion.
+    var mediaType: MediaType?
+    var mediaPath: String?
+    var mediaMime: String?
+    var mediaDurationSeconds: Int?
+    var mediaPeaks: [Int]?
+    var transcript: String?
+    /// What the reply was written in, and translations keyed by the language
+    /// translated **into** — the same shape `Reflection` uses. Both are absent
+    /// until the backend adds them; see the translation request in Notion.
+    var language: String?
+    var translatedText: [String: String]?
+
     enum CodingKeys: String, CodingKey {
-        case id, content
+        case id, content, transcript, language
         case reflectionId = "reflection_id"
         case userId = "user_id"
         case createdAt = "created_at"
+        case mediaType = "media_type"
+        case mediaPath = "media_path"
+        case mediaMime = "media_mime"
+        case mediaDurationSeconds = "media_duration_seconds"
+        case mediaPeaks = "media_peaks"
+        case translatedText = "translated_text"
     }
+
+    /// What to show in the bubble — a voice reply carries its words in
+    /// `transcript`, everything else in `content`.
+    var body: String { transcript ?? content ?? "" }
+
+    /// The reply in the reader's language where one exists, falling back to
+    /// what was written. Mirrors how a reflection is shown.
+    func body(in viewerLanguage: String) -> String {
+        guard let language, language != viewerLanguage,
+              let translated = translatedText?[viewerLanguage] else { return body }
+        return translated
+    }
+
+    /// Whether this reply is being shown translated, so the UI can say so.
+    func isTranslated(for viewerLanguage: String) -> Bool {
+        guard let language, language != viewerLanguage else { return false }
+        return translatedText?[viewerLanguage] != nil
+    }
+    var hasRecording: Bool { mediaType == .voice && mediaPath?.isEmpty == false }
+    var hasPhoto: Bool { mediaType == .photo && mediaPath?.isEmpty == false }
 }
 
 struct Reaction: Identifiable, Codable, Hashable {
@@ -205,6 +280,48 @@ struct Reaction: Identifiable, Codable, Hashable {
     }
 }
 
+/// A member line on the group pulse — a commitment in Option D, a selected
+/// quote in Option A. The backend never shows the model a `user_id`; it maps
+/// positions back to people server-side, so a bad position is dropped rather
+/// than attributed to the wrong person.
+struct PulseMember: Codable, Hashable, Identifiable {
+    var userId: UUID
+    var line: String
+    var id: UUID { userId }
+
+    enum CodingKeys: String, CodingKey {
+        case line
+        case userId = "user_id"
+    }
+}
+
+/// The structured half of a group pulse, added 2026-10-02.
+///
+/// Everything is optional: the backend ships sections independently, and a row
+/// written before this existed has no payload at all.
+struct PulsePayload: Codable, Hashable {
+    var headline: String?
+    var lede: String?
+    var members: [PulseMember]?
+    var reflectionCount: Int?
+    /// The translated standfirst. The contract names this `summary` inside a
+    /// `translated_text` value — `content` is only the untranslated column on
+    /// the row itself. Both are accepted so neither spelling silently yields
+    /// an untranslated summary.
+    var summary: String?
+    var content: String?
+
+    enum CodingKeys: String, CodingKey {
+        case headline, lede, members, summary, content
+        case reflectionCount = "reflection_count"
+    }
+
+    /// Whichever of the two the backend sent.
+    var standfirst: String? {
+        [summary, content].compactMap { $0 }.first { !$0.isEmpty }
+    }
+}
+
 struct AIInsight: Identifiable, Codable, Hashable {
     let id: UUID
     var groupId: UUID
@@ -215,13 +332,39 @@ struct AIInsight: Identifiable, Codable, Hashable {
     var type: InsightType
     var content: String
     var createdAt: Date
+    var payload: PulsePayload?
+    /// What the insight was written in, and translations keyed by the language
+    /// translated **into** — the same shape reflections and comments use.
+    var language: String?
+    var translatedText: [String: PulsePayload]?
 
     enum CodingKeys: String, CodingKey {
-        case id, scope, type, content
+        case id, scope, type, content, payload, language
         case groupId = "group_id"
         case dayInstanceId = "day_instance_id"
         case targetUserId = "target_user_id"
         case createdAt = "created_at"
+        case translatedText = "translated_text"
+    }
+
+    /// The payload in the reader's language where one exists.
+    func payload(in viewerLanguage: String) -> PulsePayload? {
+        if let language, language != viewerLanguage,
+           let translated = translatedText?[viewerLanguage] { return translated }
+        return payload
+    }
+
+    /// The summary, translated when a translation carries one.
+    func summary(in viewerLanguage: String) -> String {
+        if let language, language != viewerLanguage,
+           let translated = translatedText?[viewerLanguage]?.standfirst,
+           !translated.isEmpty { return translated }
+        return content
+    }
+
+    func isTranslated(for viewerLanguage: String) -> Bool {
+        guard let language, language != viewerLanguage else { return false }
+        return translatedText?[viewerLanguage] != nil
     }
 }
 

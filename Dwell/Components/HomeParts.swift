@@ -48,14 +48,14 @@ struct ReflectionCardStack: View {
 /// Overlapping member avatars; a tick badge marks everyone who has posted.
 /// Order is stable, and no one is singled out as missing.
 struct MemberAvatarRow: View {
-    let members: [(name: String, posted: Bool)]
+    let members: [(name: String, url: URL?, posted: Bool)]
     var size: CGFloat = 48
     @Environment(\.dwell) private var t
 
     var body: some View {
         HStack(spacing: -size * 0.22) {
             ForEach(Array(members.enumerated()), id: \.offset) { _, member in
-                PhotoAvatar(name: member.name, size: size)
+                PhotoAvatar(name: member.name, url: member.url, size: size)
                     .overlay(Circle().strokeBorder(t.background, lineWidth: 2))
                     .overlay(alignment: .topTrailing) {
                         if member.posted {
@@ -90,6 +90,8 @@ struct StatusPill: View {
 /// The "Your Reflection · Posted 1 hour ago · View" row.
 struct YourReflectionRow: View {
     let postedAgo: String
+    var planTitle: String = ""
+    var planArt: URL?
     var isLate: Bool = false
     var onView: () -> Void = {}
     @Environment(\.dwell) private var t
@@ -97,7 +99,7 @@ struct YourReflectionRow: View {
     var body: some View {
         Button(action: onView) {
             HStack(spacing: Space.md) {
-                PlanCoverThumb(size: 52)
+                PlanCoverThumb(title: planTitle, imageURL: planArt, size: 52)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Your Reflection")
@@ -143,11 +145,12 @@ struct YourReflectionRow: View {
 /// request doc).
 struct PlanCoverThumb: View {
     var title: String = "When Life Gets Hard"
+    var imageURL: URL?
     var size: CGFloat = 52
     var corner: CGFloat = Radius.sm
 
     var body: some View {
-        PlanCover(title: title)
+        PlanCover(title: title, imageURL: imageURL)
             .frame(width: size, height: size)
             .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
     }
@@ -155,10 +158,14 @@ struct PlanCoverThumb: View {
 
 struct PlanCover: View {
     let title: String
+    /// Real artwork from the public `plan-images` bucket, when the plan has
+    /// any. The gradient below is the fallback, not the intent.
+    var imageURL: URL?
 
     private var palette: [Color] {
-        // Stable per title, so a plan keeps its colours between launches.
-        let seed = abs(title.hashValue)
+        // Deterministic: Swift seeds `hashValue` per process, so using it here
+        // would repaint the cover a different colour on every launch.
+        let seed = title.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xFFFFFF }
         let options: [[Color]] = [
             [Color(red: 0.98, green: 0.74, blue: 0.62), Color(red: 0.95, green: 0.42, blue: 0.33)],
             [Color(red: 0.72, green: 0.85, blue: 0.95), Color(red: 0.35, green: 0.56, blue: 0.83)],
@@ -169,6 +176,19 @@ struct PlanCover: View {
     }
 
     var body: some View {
+        if let imageURL {
+            AsyncImage(url: imageURL) { phase in
+                switch phase {
+                case .success(let image): image.resizable().scaledToFill()
+                default: gradient
+                }
+            }
+        } else {
+            gradient
+        }
+    }
+
+    private var gradient: some View {
         LinearGradient(colors: palette, startPoint: .topLeading, endPoint: .bottomTrailing)
             .overlay(alignment: .center) {
                 Text(title.uppercased())

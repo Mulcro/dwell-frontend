@@ -304,6 +304,20 @@ final class MockDwellAPI: DwellAPI {
         return user
     }
 
+    func setAvatar(fileURL: URL, mime: String) async throws -> String {
+        try await tick()
+        throw DwellError.notImplemented("Avatars")
+    }
+
+    func avatarURL(path: String) async throws -> URL {
+        throw DwellError.notFound("Avatar")
+    }
+
+    func deleteAccount() async throws {
+        try await tick()
+        load(.signedOut)
+    }
+
     func signOut() async throws {
         try await tick()
         load(.signedOut)
@@ -358,7 +372,8 @@ final class MockDwellAPI: DwellAPI {
 
     func submitReflection(dayInstanceId: UUID, mediaType: MediaType,
                           content: String?, transcript: String?,
-                          language: String) async throws -> SubmitReflectionResponse {
+                          language: String,
+                          attachment: MediaAttachment?) async throws -> SubmitReflectionResponse {
         try await tick()
         guard let me else { throw DwellError.notAuthenticated }
         guard let dayIdx = days.firstIndex(where: { $0.id == dayInstanceId }) else {
@@ -477,17 +492,32 @@ final class MockDwellAPI: DwellAPI {
         return all.filter { $0.moderationStatus == .approved }
     }
 
+    func commentMediaSupported() async -> Bool { true }
+
+    func myReflections(groupId: UUID) async throws -> [Reflection] {
+        try await tick()
+        return reflectionsStore.filter { $0.userId == me?.id }
+    }
+
     func comments(reflectionId: UUID) async throws -> [Comment] {
         try await tick(); return commentsStore.filter { $0.reflectionId == reflectionId }
     }
 
-    func addComment(reflectionId: UUID, content: String) async throws -> Comment {
+    func addComment(reflectionId: UUID, content: String,
+                    attachment: MediaAttachment?, transcript: String?,
+                    language: String) async throws {
         try await tick()
-        guard let me else { throw DwellError.notAuthenticated }
-        let c = Comment(id: UUID(), reflectionId: reflectionId, userId: me.id,
-                        content: content, createdAt: .now)
-        commentsStore.append(c)
-        return c
+        let mediaType: MediaType? = attachment.map {
+            if case .voice = $0 { return .voice } else { return .photo }
+        }
+        commentsStore.append(Comment(id: UUID(),
+                                     reflectionId: reflectionId,
+                                     userId: me?.id ?? UUID(),
+                                     content: content,
+                                     createdAt: .now,
+                                     mediaType: mediaType,
+                                     transcript: transcript,
+                                     language: language))
     }
 
     func reactions(reflectionId: UUID) async throws -> [Reaction] {
@@ -532,6 +562,10 @@ final class MockDwellAPI: DwellAPI {
         }
     }
 
+    func membershipChanges(groupId: UUID) -> AsyncStream<Void> {
+        AsyncStream { $0.finish() }
+    }
+
     func insightInserts(groupId: UUID) -> AsyncStream<AIInsight> {
         AsyncStream { continuation in
             insightContinuations[groupId] = continuation
@@ -540,6 +574,12 @@ final class MockDwellAPI: DwellAPI {
     }
 
     // MARK: - PlanService + passages
+
+    func planImageURL(path: String) -> URL? { nil }
+
+    func mediaURL(path: String) async throws -> URL {
+        throw DwellError.notFound("Media")
+    }
 
     func listPlans() async throws -> [PlanChallenge] { try await tick(); return Seed.plans }
 

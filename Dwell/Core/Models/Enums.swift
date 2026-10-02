@@ -5,6 +5,11 @@ import Foundation
 
 enum MediaType: String, Codable, Hashable, CaseIterable {
     case text, voice
+    /// Not in the Postgres enum yet (Notion items 31 and 35). The server never
+    /// sends it, so decoding is unaffected; it exists so the feed and composer
+    /// are already written for it when the bucket lands. The composer refuses
+    /// to submit one in the meantime.
+    case photo
 }
 
 /// The five values `create-group` accepts.

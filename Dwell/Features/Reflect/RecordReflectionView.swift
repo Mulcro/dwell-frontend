@@ -17,6 +17,10 @@ struct RecordReflectionView: View {
     @State private var pickedPhoto: PhotosPickerItem?
     @State private var photoImage: UIImage?
     @State private var preparingPhoto = false
+    /// Bumped whenever the composer's intent changes. A photo that finishes
+    /// preparing against a stale token is discarded — otherwise picking a
+    /// photo, switching to Text, and waiting silently switched you back.
+    @State private var captureToken = UUID()
     @FocusState private var typing: Bool
 
     private var dayIndex: Int { session.currentDay?.dayIndex ?? 1 }
@@ -222,11 +226,19 @@ struct RecordReflectionView: View {
     }
 
     private func preparePhoto(_ item: PhotosPickerItem) async {
+        let token = captureToken
         preparingPhoto = true
         defer { preparingPhoto = false; pickedPhoto = nil }
         speech?.stop()
         guard let data = try? await item.loadTransferable(type: Data.self),
               let prepared = ImagePrep.jpeg(from: data) else { return }
+
+        // Loading a photo takes long enough to change your mind during.
+        guard token == captureToken else {
+            try? FileManager.default.removeItem(at: prepared.fileURL)
+            return
+        }
+
         photoImage = UIImage(contentsOfFile: prepared.fileURL.path)
         draft.mediaType = .photo
         draft.attachment = .photo(fileURL: prepared.fileURL, mime: prepared.mime)
@@ -320,6 +332,7 @@ struct RecordReflectionView: View {
 
     /// Drops whatever was captured for the previous mode, and the file with it.
     private func discardAttachment() {
+        captureToken = UUID()
         if let attachment = draft.attachment {
             try? FileManager.default.removeItem(at: attachment.fileURL)
         }

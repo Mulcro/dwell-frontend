@@ -24,6 +24,7 @@ struct ReflectionThreadView: View {
     @State private var photoPreview: UIImage?
     @State private var pickedPhoto: PhotosPickerItem?
     @State private var speech: SpeechRecognizer?
+    @State private var captureToken = UUID()
     @State private var toast: Toast?
     @FocusState private var writing: Bool
 
@@ -357,10 +358,16 @@ struct ReflectionThreadView: View {
     }
 
     private func stagePhoto(_ item: PhotosPickerItem) async {
+        let token = captureToken
         defer { pickedPhoto = nil }
         guard let data = try? await item.loadTransferable(type: Data.self),
               let prepared = ImagePrep.jpeg(from: data) else {
             toast = .failure("That image couldn't be read.")
+            return
+        }
+        // Discarded while it was loading — don't bring it back.
+        guard token == captureToken else {
+            try? FileManager.default.removeItem(at: prepared.fileURL)
             return
         }
         photoPreview = UIImage(contentsOfFile: prepared.fileURL.path)
@@ -369,6 +376,7 @@ struct ReflectionThreadView: View {
     }
 
     private func discardAttachment() {
+        captureToken = UUID()
         if let attachment { try? FileManager.default.removeItem(at: attachment.fileURL) }
         attachment = nil
         photoPreview = nil

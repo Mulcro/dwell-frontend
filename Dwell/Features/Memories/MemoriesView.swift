@@ -14,6 +14,7 @@ struct MemoriesView: View {
     @State private var mode: Mode = .timeline
     @State private var opened: Reflection?
     @State private var pastPulses: [AIInsight] = []
+    @State private var challengePhotos: [URL] = []
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -36,6 +37,7 @@ struct MemoriesView: View {
         }
         .dwellThemed()
         .task { await loadPulses() }
+        .task(id: session.myReflections.count) { await loadChallengePhotos() }
         .sheet(item: $opened) { reflection in
             MemoryDetailView(reflection: reflection) { opened = nil }
         }
@@ -170,9 +172,29 @@ struct MemoriesView: View {
         return [.init(id: g.id,
                       title: plan.title,
                       ended: session.days.map(\.date).max() ?? .now,
-                      mediaURLs: [],
+                      mediaURLs: challengePhotos,
                       coverArt: planArt,
-                      totalCount: session.myReflections.count)]
+                      // The badge counts photographs, not reflections — it sits
+                      // on a stack of pictures, so counting posts would promise
+                      // images that aren't there.
+                      totalCount: photoReflectionCount)]
+    }
+
+    private var photoReflectionCount: Int {
+        session.myReflections.filter { $0.mediaType == .photo && $0.mediaPath != nil }.count
+    }
+
+    /// Signs the first few photographs for the fanned stack.
+    private func loadChallengePhotos() async {
+        let paths = session.myReflections
+            .filter { $0.mediaType == .photo }
+            .compactMap(\.mediaPath)
+            .suffix(4)
+        var urls: [URL] = []
+        for path in paths {
+            if let url = try? await session.api.mediaURL(path: path) { urls.append(url) }
+        }
+        challengePhotos = urls
     }
 
     // MARK: - What the group noticed

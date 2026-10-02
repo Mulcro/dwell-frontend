@@ -23,6 +23,14 @@ struct PastChallengeRow: View {
         (99, 136, -0.11), (91, 131, 0.05), (96, 134, -0.08), (92, 132, 0.05)
     ]
 
+    /// Only as many tiles as there are pictures — padding the stack with
+    /// repeats of the plan's cover art would claim memories that don't exist.
+    /// With none at all, one tile shows the cover as a plain marker.
+    private var visibleLayout: [(w: CGFloat, h: CGFloat, angle: Double)] {
+        let available = max(challenge.mediaURLs.count, 1)
+        return Array(layout.prefix(min(available, layout.count)))
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Space.md) {
             HStack(alignment: .firstTextBaseline, spacing: Space.md) {
@@ -38,7 +46,7 @@ struct PastChallengeRow: View {
             }
 
             HStack(spacing: -6) {
-                ForEach(Array(layout.enumerated()), id: \.offset) { index, spec in
+                ForEach(Array(visibleLayout.enumerated()), id: \.offset) { index, spec in
                     tile(at: index, spec: spec)
                 }
                 Spacer(minLength: 0)
@@ -49,7 +57,7 @@ struct PastChallengeRow: View {
 
     @ViewBuilder
     private func tile(at index: Int, spec: (w: CGFloat, h: CGFloat, angle: Double)) -> some View {
-        let isOverflow = index == layout.count - 1 && remaining > 0
+        let isOverflow = index == visibleLayout.count - 1 && remaining > 0
         ZStack {
             image(at: index)
                 .frame(width: spec.w, height: spec.h)
@@ -92,9 +100,9 @@ struct PastChallengeRow: View {
         }
     }
 
-    /// Whatever the stack doesn't show.
+    /// Photographs beyond the ones on screen.
     private var remaining: Int {
-        max(challenge.totalCount - layout.count, 0)
+        max(challenge.totalCount - challenge.mediaURLs.count, 0)
     }
 
     private var monthLabel: String {

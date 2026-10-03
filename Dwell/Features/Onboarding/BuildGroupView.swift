@@ -11,6 +11,8 @@ struct BuildGroupView: View {
     @State private var plans: Loadable<[PlanChallenge]> = .idle
     @State private var selected: PlanChallenge?
     @State private var search = ""
+    /// The plan whose detail screen (Figma 02b) is open.
+    @State private var detailPlan: PlanChallenge?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -70,6 +72,15 @@ struct BuildGroupView: View {
         }
         .dwellThemed()
         .task { await load() }
+        .fullScreenCover(item: $detailPlan) { plan in
+            PlanDetailView(plan: plan,
+                           onClose: { detailPlan = nil },
+                           onStart: {
+                               Haptics.select()
+                               selected = $0
+                               detailPlan = nil
+                           })
+        }
     }
 
     private var searchField: some View {
@@ -90,9 +101,10 @@ struct BuildGroupView: View {
 
     private func planCard(_ plan: PlanChallenge) -> some View {
         let isSelected = selected?.id == plan.id
+        // The row opens the detail; "Start with your group" there selects.
         return Button {
-            Haptics.select()
-            selected = plan
+            Haptics.tap()
+            detailPlan = plan
         } label: {
             HStack(alignment: .center, spacing: Space.lg) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -106,7 +118,7 @@ struct BuildGroupView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: Space.sm)
-                Text(isSelected ? "Selected" : "Start")
+                Text(isSelected ? "Selected" : "Details")
                     .font(.dwellCaptionMd)
                     .foregroundStyle(isSelected ? t.onInk : t.textPrimary)
                     .padding(.horizontal, 18)
@@ -140,6 +152,11 @@ struct BuildGroupView: View {
             let list = try await session.api.listPlans()
             plans = .loaded(list)
             selected = selected ?? list.first
+            // DWELL_PLAN_DETAIL=1 opens the first plan's detail straight
+            // away, for screenshots — same idea as DWELL_REFLECT on Home.
+            if ProcessInfo.processInfo.environment["DWELL_PLAN_DETAIL"] == "1" {
+                detailPlan = list.first
+            }
         } catch {
             plans = .failed(error.localizedDescription)
         }

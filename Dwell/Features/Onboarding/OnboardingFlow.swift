@@ -10,6 +10,7 @@ struct OnboardingFlow: View {
         case signUp
         case youVersion
         case stats
+        case howItWorks
         case startOrJoin
         case buildGroup
         case frequency(name: String, plan: PlanChallenge)
@@ -26,6 +27,7 @@ struct OnboardingFlow: View {
         case "signUp":       return .signUp
         case "youVersion":   return .youVersion
         case "stats":        return .stats
+        case "howItWorks":   return .howItWorks
         case "startOrJoin":  return .startOrJoin
         case "buildGroup":   return .buildGroup
         case "invite":       return .invite
@@ -102,10 +104,14 @@ struct OnboardingFlow: View {
 
         case .stats:
             BibleStatsView(onBack: { step = .signUp },
-                           onContinue: { step = .startOrJoin })
+                           onContinue: { step = .howItWorks })
+
+        case .howItWorks:
+            HowDwellWorksView(onBack: { step = .stats },
+                              onDone: { step = .startOrJoin })
 
         case .startOrJoin:
-            StartOrJoinView(onBack: enteredAtStartOrJoin ? nil : { step = .stats },
+            StartOrJoinView(onBack: enteredAtStartOrJoin ? nil : { step = .howItWorks },
                             onCreate: { step = .buildGroup },
                             onJoined: {
                                 // Order matters: hold the flow open *before*

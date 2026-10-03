@@ -140,7 +140,7 @@ struct ReflectionThreadView: View {
             }
             .buttonStyle(PressScale())
 
-            if showCompanion, let response = reflection.aiResponse {
+            if showCompanion, let response = reflection.companionResponse(in: viewerLanguage) {
                 Text(response)
                     .font(.dwellBody)
                     .foregroundStyle(t.textPrimary)

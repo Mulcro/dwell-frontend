@@ -135,7 +135,8 @@ struct ReviewReflectionView: View {
         VoiceNoteCard(levels: draft.levels,
                       duration: SpeechRecognizer.durationLabel(draft.duration),
                       isPlaying: player.isPlaying,
-                      onPlay: playAction) {
+                      onPlay: playAction,
+                      showsWaveform: draft.mediaType == .voice) {
             HStack(alignment: .top, spacing: Space.md) {
                 Text(draft.body)
                     .font(.dwellBody)

@@ -79,6 +79,16 @@ struct RecordReflectionView: View {
         // The recogniser can also finish by itself — the 120s cap, a final
         // result, or an error. Mirroring only on the Stop tap left a captured
         // reflection stranded in those cases.
+        .scrollDismissesKeyboard(.interactively)
+        // There was no way out of the keyboard at all: the composer fills the
+        // screen above it and nothing dismissed it.
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { typing = false }
+                    .font(.dwellBodyMd)
+            }
+        }
         .onChange(of: speech?.state) { _, _ in sync() }
         .onDisappear { speech?.stop() }
         .onChange(of: pickedPhoto) { _, item in
@@ -266,7 +276,7 @@ struct RecordReflectionView: View {
             )
             .overlay(alignment: .topLeading) {
                 if draft.body.isEmpty {
-                    Text("Say the true thing, not the tidy one.")
+                    Text("Be honest — no one sees this until they've posted too.")
                         .font(.dwellBody)
                         .foregroundStyle(t.textSecondary)
                         .padding(Space.lg + 8)

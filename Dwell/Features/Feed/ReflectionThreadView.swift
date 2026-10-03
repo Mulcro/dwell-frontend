@@ -79,6 +79,14 @@ struct ReflectionThreadView: View {
             }
         }
         .dwellThemed()
+        .scrollDismissesKeyboard(.interactively)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { writing = false }
+                    .font(.dwellBodyMd)
+            }
+        }
         .toast($toast)
         .task { await load() }
     }

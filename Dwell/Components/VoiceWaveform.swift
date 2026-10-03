@@ -45,11 +45,15 @@ struct VoiceNoteCard<Footer: View>: View {
     let duration: String
     var isPlaying: Bool = false
     var onPlay: (() -> Void)?
+    /// A text reflection has no audio, so it gets no trace. Drawing one is a
+    /// picture of a recording that doesn't exist.
+    var showsWaveform: Bool = true
     @ViewBuilder var footer: Footer
     @Environment(\.dwell) private var t
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.lg) {
+            if showsWaveform {
             HStack(spacing: Space.lg) {
                 if let onPlay {
                     Button(action: onPlay) {
@@ -65,6 +69,7 @@ struct VoiceNoteCard<Footer: View>: View {
                 }
                 VoiceWaveform(levels: levels, seed: seed)
                 Spacer(minLength: 0)
+            }
             }
             footer
         }

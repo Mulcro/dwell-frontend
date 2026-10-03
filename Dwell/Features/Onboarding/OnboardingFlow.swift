@@ -43,9 +43,6 @@ struct OnboardingFlow: View {
     }
     /// Guards the one-time entry correction below.
     @State private var resolvedEntry = false
-    /// True when the flow opened straight onto `.startOrJoin` because the user
-    /// was already signed in — there is then no earlier step to go back to.
-    @State private var enteredAtStartOrJoin = false
     /// Which page the explainer opens on: 0 going forward from Stats,
     /// the last page when Back from Start-or-Join re-enters it.
     @State private var explainerStart = 0
@@ -66,12 +63,12 @@ struct OnboardingFlow: View {
                     step = OnboardingFlow.initialStep
                     return
                 }
-                // Only a user arriving signed in at the very start skips
-                // ahead; a rebuild mid-flow finds the step already moved
-                // and leaves it alone.
+                // A user arriving signed in at the very start skips the
+                // account screens but keeps the walk: stats, the explainer,
+                // then Start-or-Join, with Back working throughout. A rebuild
+                // mid-flow finds the step already moved and leaves it alone.
                 guard session.isSignedIn, step == .welcome else { return }
-                enteredAtStartOrJoin = true
-                step = .startOrJoin
+                step = .stats
             }
             .sheet(isPresented: $showLogIn) {
                 LogInView(
@@ -117,7 +114,7 @@ struct OnboardingFlow: View {
                                  onSignedIn: { step = .stats })
 
         case .stats:
-            BibleStatsView(onBack: { step = .signUp },
+            BibleStatsView(onBack: session.isSignedIn ? nil : { step = .signUp },
                            onContinue: { explainerStart = 0; step = .howItWorks })
 
         case .howItWorks:
@@ -126,7 +123,7 @@ struct OnboardingFlow: View {
                               onDone: { step = .startOrJoin })
 
         case .startOrJoin:
-            StartOrJoinView(onBack: enteredAtStartOrJoin ? nil : { explainerStart = 3; step = .howItWorks },
+            StartOrJoinView(onBack: { explainerStart = 3; step = .howItWorks },
                             onCreate: { step = .buildGroup },
                             onJoined: {
                                 // Order matters: hold the flow open *before*

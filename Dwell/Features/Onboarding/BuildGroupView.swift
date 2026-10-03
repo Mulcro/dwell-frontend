@@ -99,46 +99,81 @@ struct BuildGroupView: View {
         .clipShape(Capsule())
     }
 
+    /// Image on top, title in the middle, Select and Details below.
+    /// Tapping the card selects too; Details is the only way into the
+    /// detail screen, so browsing never changes the choice by accident.
+    /// Image on top, title in the middle, Select and Details below.
+    /// Tapping the card selects too; Details is the only way into the
+    /// detail screen, so browsing never changes the choice by accident.
     private func planCard(_ plan: PlanChallenge) -> some View {
         let isSelected = selected?.id == plan.id
-        // The row opens the detail; "Start with your group" there selects.
-        return Button {
-            Haptics.tap()
-            detailPlan = plan
-        } label: {
-            HStack(alignment: .center, spacing: Space.lg) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("\(plan.dayCount) Days")
-                        .font(.dwellCaptionMd)
-                        .foregroundStyle(t.textSecondary)
-                    Text(plan.title)
-                        .font(.dwellBodyMd)
-                        .foregroundStyle(t.textPrimary)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: Space.sm)
-                Text(isSelected ? "Selected" : "Details")
+        return VStack(spacing: 0) {
+            PlanCover(title: plan.title,
+                      imageURL: plan.imagePath.flatMap { session.api.planImageURL(path: $0) })
+                .frame(height: 120)
+                .frame(maxWidth: .infinity)
+                .clipped()
+
+            VStack(spacing: Space.sm) {
+                Text("\(plan.dayCount) Days")
                     .font(.dwellCaptionMd)
-                    .foregroundStyle(isSelected ? t.onInk : t.textPrimary)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 10)
-                    .background(isSelected ? t.ink : .clear)
-                    .clipShape(Capsule())
-                    .overlay(
-                        Capsule().strokeBorder(isSelected ? .clear : t.borderStrong, lineWidth: 1)
-                    )
+                    .foregroundStyle(t.textSecondary)
+
+                Text(plan.title)
+                    .font(.dwellBodyMd)
+                    .foregroundStyle(t.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: Space.xl) {
+                    Button {
+                        Haptics.select()
+                        selected = plan
+                    } label: {
+                        Text(isSelected ? "Selected" : "Select")
+                            .font(.dwellCaptionMd)
+                            .foregroundStyle(isSelected ? t.onInk : t.textPrimary)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 10)
+                            .background(isSelected ? t.ink : .clear)
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule().strokeBorder(isSelected ? .clear : t.borderStrong, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(PressScale())
+
+                    Button {
+                        Haptics.tap()
+                        detailPlan = plan
+                    } label: {
+                        Text("Details")
+                            .font(.dwellCaptionMd)
+                            .foregroundStyle(t.textPrimary)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 10)
+                            .overlay(
+                                Capsule().strokeBorder(t.borderStrong, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(PressScale())
+                }
+                .padding(.top, Space.sm)
             }
             .padding(Space.lg)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(t.surface)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
-                    .strokeBorder(isSelected ? t.ink : t.border, lineWidth: 1)
-            )
+            .frame(maxWidth: .infinity)
         }
-        .buttonStyle(PressScale())
+        .background(t.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                .strokeBorder(isSelected ? t.ink : t.border, lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+        .onTapGesture {
+            Haptics.select()
+            selected = plan
+        }
     }
 
     private func filtered(_ list: [PlanChallenge]) -> [PlanChallenge] {

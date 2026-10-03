@@ -2,9 +2,11 @@ import SwiftUI
 
 /// The large resurfacing card at the top of Memories.
 ///
-/// Geometry from the Figma (`3013:2919`): a 213×322 card, radius 16, with the
-/// photograph filling the top 232pt, the title set over it at 32pt, and a
-/// footer carrying a 72×72 plan-art chip beside the two dates.
+/// Geometry from the Figma (`3013:2919`): a 213×322 card, radius 16. The
+/// photograph fills the whole card, with background-coloured gradients
+/// bleeding in from the top and bottom edges so the title and dates stay
+/// legible over any image; the footer carries a 72×72 plan-art chip beside
+/// the two dates.
 struct OnThisDayCard: View {
     enum Kind {
         case onThisDay
@@ -28,15 +30,23 @@ struct OnThisDayCard: View {
 
     private let cardWidth: CGFloat = 213
     private let cardHeight: CGFloat = 322
-    private let photoHeight: CGFloat = 232
 
     var body: some View {
         ZStack(alignment: .top) {
+            backdrop
+                .frame(width: cardWidth, height: cardHeight)
+                .clipped()
+
+            // The image owns the card; these keep its edges from owning the
+            // text as well.
             VStack(spacing: 0) {
-                backdrop
-                    .frame(width: cardWidth, height: photoHeight)
-                    .clipped()
+                LinearGradient(colors: [t.background.opacity(0.95), t.background.opacity(0)],
+                               startPoint: .top, endPoint: .bottom)
+                    .frame(height: 120)
                 Spacer(minLength: 0)
+                LinearGradient(colors: [t.background.opacity(0), t.background.opacity(0.95)],
+                               startPoint: .top, endPoint: .bottom)
+                    .frame(height: 130)
             }
 
             VStack(alignment: .leading, spacing: 0) {
@@ -72,26 +82,30 @@ struct OnThisDayCard: View {
         )
     }
 
-    /// The reflection's own photo where it has one, the plan's cover art
-    /// otherwise — the card is photo-led, so it must never be a grey box.
+    /// The reflection's own photo where it has one, the app's sky otherwise.
+    /// Deliberately not the plan art: it already sits on the chip, and as a
+    /// full-card backdrop its baked-in titles fought the card's own text.
     @ViewBuilder
     private var backdrop: some View {
         Group {
-            if let url = photoURL ?? planArt {
+            if let url = photoURL {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image): image.resizable().scaledToFill()
-                    default: t.surfaceRaised
+                    default: generic
                     }
                 }
             } else {
-                t.surfaceRaised
+                generic
             }
         }
-        // Outside the branch deliberately: when the plan has cover art the
-        // first branch always wins, so a task attached to the fallback never
-        // ran and a photo reflection always showed the plan's artwork.
+        // Outside the branch deliberately, so it runs before the photo URL
+        // has been signed and the fallback is showing.
         .task { await loadPhoto() }
+    }
+
+    private var generic: some View {
+        Image("SkyHero").resizable().scaledToFill()
     }
 
     @ViewBuilder

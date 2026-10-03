@@ -41,6 +41,9 @@ struct OnboardingFlow: View {
     /// True when the flow opened straight onto `.startOrJoin` because the user
     /// was already signed in — there is then no earlier step to go back to.
     @State private var enteredAtStartOrJoin = false
+    /// Which page the explainer opens on: 0 going forward from Stats,
+    /// the last page when Back from Start-or-Join re-enters it.
+    @State private var explainerStart = 0
     @State private var showLogIn = false
     @State private var creating = false
     @State private var error: String?
@@ -104,14 +107,15 @@ struct OnboardingFlow: View {
 
         case .stats:
             BibleStatsView(onBack: { step = .signUp },
-                           onContinue: { step = .howItWorks })
+                           onContinue: { explainerStart = 0; step = .howItWorks })
 
         case .howItWorks:
-            HowDwellWorksView(onBack: { step = .stats },
+            HowDwellWorksView(startPage: explainerStart,
+                              onBack: { step = .stats },
                               onDone: { step = .startOrJoin })
 
         case .startOrJoin:
-            StartOrJoinView(onBack: enteredAtStartOrJoin ? nil : { step = .howItWorks },
+            StartOrJoinView(onBack: enteredAtStartOrJoin ? nil : { explainerStart = 3; step = .howItWorks },
                             onCreate: { step = .buildGroup },
                             onJoined: {
                                 // Order matters: hold the flow open *before*

@@ -13,9 +13,19 @@ struct HowDwellWorksView: View {
     var onDone: () -> Void = {}
 
     @Environment(\.dwell) private var t
-    // DWELL_PAGE=<0-3> opens straight onto a page, for screenshots.
-    @State private var page =
-        Int(ProcessInfo.processInfo.environment["DWELL_PAGE"] ?? "") ?? 0
+    @State private var page: Int
+
+    /// `startPage` lets Back from Start-or-Join land on the last page
+    /// instead of restarting the sequence. DWELL_PAGE=<0-3> overrides it,
+    /// for screenshots.
+    init(startPage: Int = 0,
+         onBack: @escaping () -> Void = {},
+         onDone: @escaping () -> Void = {}) {
+        self.onBack = onBack
+        self.onDone = onDone
+        _page = State(initialValue:
+            Int(ProcessInfo.processInfo.environment["DWELL_PAGE"] ?? "") ?? startPage)
+    }
 
     private struct Page {
         let title: String
@@ -50,9 +60,10 @@ struct HowDwellWorksView: View {
             SkyBackground(height: 320, fadeFrom: 0.25)
 
             VStack(spacing: 0) {
-                // Stats sits at 0.3 and Build Group at 0.56; these four pages
-                // walk the bar through the gap between them.
-                OnboardingHeader(progress: 0.34 + 0.05 * Double(page),
+                // Stats sits at 0.3 and Start-or-Join at 0.42; these four
+                // pages walk the bar through that gap, so Continue off the
+                // last page still moves it forward.
+                OnboardingHeader(progress: 0.31 + 0.03 * Double(page),
                                  onBack: {
                                      if page > 0 { withAnimation { page -= 1 } }
                                      else { onBack() }

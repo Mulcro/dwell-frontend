@@ -9,6 +9,9 @@ import SwiftUI
 struct MemoriesView: View {
     private enum Mode { case timeline, calendar }
 
+    /// Where "Keep Reflecting" on the first-run screen sends you.
+    var onKeepReflecting: () -> Void = {}
+
     @Environment(SessionStore.self) private var session
     @Environment(\.dwell) private var t
     @State private var mode: Mode = .timeline
@@ -26,9 +29,16 @@ struct MemoriesView: View {
 
                 ScrollView {
                     Group {
-                        switch mode {
-                        case .timeline: timeline
-                        case .calendar: calendar
+                        // No reflections yet means no memories in either mode,
+                        // so both toggles land on the same first-run screen.
+                        if entries.isEmpty {
+                            MemoriesEmptyState(onKeepReflecting: onKeepReflecting)
+                                .padding(.top, Space.xxl)
+                        } else {
+                            switch mode {
+                            case .timeline: timeline
+                            case .calendar: calendar
+                            }
                         }
                     }
                     .padding(.bottom, TabBarMetrics.clearance)
@@ -88,11 +98,12 @@ struct MemoriesView: View {
 
     private var entries: [Reflection] { session.myReflections.reversed() }
 
-    /// Old enough to be worth being reminded of. The design reaches back
-    /// across challenges; there is only this one to reach into.
+    /// Old enough to be worth being reminded of: a day, per the design's
+    /// split between the first-run screen and the populated one. The comp
+    /// reaches back across challenges; there is only this one to reach into.
     private var resurfaced: [Reflection] {
         session.myReflections.filter {
-            (Calendar.current.dateComponents([.day], from: $0.createdAt, to: .now).day ?? 0) >= 2
+            (Calendar.current.dateComponents([.day], from: $0.createdAt, to: .now).day ?? 0) >= 1
         }.prefix(3).reversed()
     }
 
@@ -103,52 +114,46 @@ struct MemoriesView: View {
 
     @ViewBuilder
     private var timeline: some View {
-        if entries.isEmpty {
-            EmptyStateView(title: "Nothing here yet",
-                           message: "Your reflections collect here as the challenge goes on.")
-                .padding(.top, Space.xxxl)
-        } else {
-            VStack(alignment: .leading, spacing: Space.xl) {
-                if !resurfaced.isEmpty {
-                    ScrollView(.horizontal) {
-                        HStack(spacing: Space.lg) {
-                            ForEach(Array(resurfaced.enumerated()), id: \.element.id) { index, reflection in
-                                Button { opened = reflection } label: {
-                                    OnThisDayCard(reflection: reflection,
-                                                  kind: index == 0 ? .onThisDay : .noteForLater,
-                                                  planArt: planArt)
-                                }
-                                .buttonStyle(PressScale())
+        VStack(alignment: .leading, spacing: Space.xl) {
+            if !resurfaced.isEmpty {
+                ScrollView(.horizontal) {
+                    HStack(spacing: Space.lg) {
+                        ForEach(Array(resurfaced.enumerated()), id: \.element.id) { index, reflection in
+                            Button { opened = reflection } label: {
+                                OnThisDayCard(reflection: reflection,
+                                              kind: index == 0 ? .onThisDay : .noteForLater,
+                                              planArt: planArt)
                             }
+                            .buttonStyle(PressScale())
                         }
-                        .padding(.horizontal, Space.gutter)
                     }
-                    .scrollIndicators(.hidden)
+                    .padding(.horizontal, Space.gutter)
                 }
+                .scrollIndicators(.hidden)
+            }
 
-                VStack(alignment: .leading, spacing: Space.lg) {
-                    Text("Your reflections")
-                        .font(.dwellCardTitleStrong)
-                        .foregroundStyle(t.textPrimary)
-                    ForEach(entries) { reflection in
-                        Button { opened = reflection } label: {
-                            MemoryCard(reflection: reflection,
-                                       dayIndex: dayIndex(for: reflection),
-                                       planTitle: session.plan?.title ?? "")
-                        }
-                        .buttonStyle(PressScale())
+            VStack(alignment: .leading, spacing: Space.lg) {
+                Text("Your reflections")
+                    .font(.dwellCardTitleStrong)
+                    .foregroundStyle(t.textPrimary)
+                ForEach(entries) { reflection in
+                    Button { opened = reflection } label: {
+                        MemoryCard(reflection: reflection,
+                                   dayIndex: dayIndex(for: reflection),
+                                   planTitle: session.plan?.title ?? "")
                     }
+                    .buttonStyle(PressScale())
                 }
+            }
+            .padding(.horizontal, Space.gutter)
+
+            pulseHistory
                 .padding(.horizontal, Space.gutter)
 
-                pulseHistory
-                    .padding(.horizontal, Space.gutter)
-
-                pastChallenges
-                    .padding(.horizontal, Space.gutter)
-            }
-            .padding(.top, Space.lg)
+            pastChallenges
+                .padding(.horizontal, Space.gutter)
         }
+        .padding(.top, Space.lg)
     }
 
     // MARK: - Past challenges
@@ -346,14 +351,7 @@ struct MemoriesView: View {
         return Button {
             if let reflection { opened = reflection }
         } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
-                    .fill(reflection == nil ? t.surfaceRaised : t.ink)
-                Text("\(number)")
-                    .font(.dwellSmallMd)
-                    .foregroundStyle(reflection == nil ? t.textSecondary.opacity(0.6) : t.onInk)
-            }
-            .aspectRatio(1, contentMode: .fit)
+            CalendarDayCell(reflection: reflection, number: number)
         }
         .buttonStyle(PressScale())
         .disabled(reflection == nil)
@@ -375,5 +373,55 @@ struct MemoriesView: View {
 
     private func dayIndex(for reflection: Reflection) -> Int? {
         session.days.first { $0.id == reflection.dayInstanceId }?.dayIndex
+    }
+}
+
+/// One circle in the calendar grid (`Memories · Calendar`, `3161:26303`).
+///
+/// A day whose reflection carries a photo shows the photograph itself; any
+/// other posted day is an ink disc with the date, and a day without a
+/// reflection stays a quiet number. Each cell signs its own URL on appear,
+/// the same pattern as `OnThisDayCard`, so a grid left on screen past the
+/// hour re-signs as cells are recreated rather than going blank at once.
+private struct CalendarDayCell: View {
+    let reflection: Reflection?
+    let number: Int
+
+    @Environment(SessionStore.self) private var session
+    @Environment(\.dwell) private var t
+    @State private var photoURL: URL?
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(reflection == nil ? t.surfaceRaised : t.ink)
+            if photoURL == nil {
+                Text("\(number)")
+                    .font(.dwellSmallMd)
+                    .foregroundStyle(reflection == nil ? t.textSecondary.opacity(0.6) : t.onInk)
+            }
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .overlay {
+            if let photoURL {
+                AsyncImage(url: photoURL) { phase in
+                    switch phase {
+                    case .success(let image): image.resizable().scaledToFill()
+                    default: Color.clear
+                    }
+                }
+            }
+        }
+        .clipShape(Circle())
+        .task(id: reflection?.id) { await loadPhoto() }
+    }
+
+    private func loadPhoto() async {
+        guard let reflection, reflection.mediaType == .photo,
+              let path = reflection.mediaPath else {
+            photoURL = nil
+            return
+        }
+        photoURL = try? await session.api.mediaURL(path: path)
     }
 }

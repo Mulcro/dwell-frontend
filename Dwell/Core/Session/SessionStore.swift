@@ -171,7 +171,17 @@ final class SessionStore {
 
     func beginOnboardingTail() { onboardingActive = true }
 
-    func finishOnboarding() { onboardingActive = false }
+    func finishOnboarding() {
+        onboardingActive = false
+        onboardingStep = .welcome
+    }
+
+    /// Where the onboarding flow currently is. Lives here, not in the view:
+    /// signing up flips the auth state, the router rebuilds OnboardingFlow,
+    /// and @State progress died with the old view — a brand-new account then
+    /// re-entered as "already signed in" and was bounced past Bible Stats
+    /// and the explainer with no way back.
+    var onboardingStep: OnboardingFlow.Step = .welcome
 
     func resetOnboarding() {
         onboardingActive = true

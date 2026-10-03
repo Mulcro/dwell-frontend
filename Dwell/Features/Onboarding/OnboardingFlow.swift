@@ -19,7 +19,12 @@ struct OnboardingFlow: View {
         case notifications
     }
 
-    @State private var step: Step = OnboardingFlow.initialStep
+    /// Backed by the session so a router rebuild mid-flow resumes here
+    /// rather than restarting; see `SessionStore.onboardingStep`.
+    private var step: Step {
+        get { session.onboardingStep }
+        nonmutating set { session.onboardingStep = newValue }
+    }
 
     /// DWELL_STEP=<name> opens straight onto a step, for screenshots.
     static var initialStep: Step {
@@ -57,8 +62,14 @@ struct OnboardingFlow: View {
             .task {
                 guard !resolvedEntry else { return }
                 resolvedEntry = true
-                guard ProcessInfo.processInfo.environment["DWELL_STEP"] == nil,
-                      session.isSignedIn, step == .welcome else { return }
+                if ProcessInfo.processInfo.environment["DWELL_STEP"] != nil {
+                    step = OnboardingFlow.initialStep
+                    return
+                }
+                // Only a user arriving signed in at the very start skips
+                // ahead; a rebuild mid-flow finds the step already moved
+                // and leaves it alone.
+                guard session.isSignedIn, step == .welcome else { return }
                 enteredAtStartOrJoin = true
                 step = .startOrJoin
             }

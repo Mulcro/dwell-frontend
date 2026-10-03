@@ -34,7 +34,7 @@ struct ShareInviteView: View {
                 Spacer()
 
                 ShareLink(item: inviteURL,
-                          message: Text("Join \(group?.name ?? "my group") on Dwell — we read together and the day opens when enough of us show up.")) {
+                          message: Text("Join \(group?.name ?? "my group") on Dwell, we read together and the day opens when enough of us show up.")) {
                     Text("Share Invite")
                         .font(.dwellButton)
                         .frame(maxWidth: .infinity)

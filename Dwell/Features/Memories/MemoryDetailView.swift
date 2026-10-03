@@ -6,6 +6,8 @@ struct MemoryDetailView: View {
     var onClose: () -> Void = {}
 
     @Environment(SessionStore.self) private var session
+
+    private var viewerLanguage: String { session.me?.preferredLanguage ?? "en" }
     @Environment(\.dwell) private var t
     @State private var player = RecordingPlayer()
     @State private var photoURL: URL?
@@ -36,7 +38,7 @@ struct MemoryDetailView: View {
                         .foregroundStyle(t.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    if let response = reflection.aiResponse, !response.isEmpty {
+                    if let response = reflection.companionResponse(in: viewerLanguage), !response.isEmpty {
                         VStack(alignment: .leading, spacing: Space.md) {
                             HStack(spacing: Space.sm) {
                                 Image(systemName: "sparkle")

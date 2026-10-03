@@ -22,6 +22,10 @@ struct RecordReflectionView: View {
     /// photo, switching to Text, and waiting silently switched you back.
     @State private var captureToken = UUID()
     @FocusState private var typing: Bool
+    /// Where the active text editor sits on screen, so the tap-to-dismiss
+    /// gesture can tell a tap beside it from a tap inside it. Only one of
+    /// the two editors (text card, photo caption) exists at a time.
+    @State private var editorFrame: CGRect = .zero
 
     private var dayIndex: Int { session.currentDay?.dayIndex ?? 1 }
     private var isRecording: Bool { speech?.state == .recording }
@@ -75,10 +79,18 @@ struct RecordReflectionView: View {
             .padding(.horizontal, Space.gutter)
             .padding(.bottom, Space.lg)
         }
+        .simultaneousGesture(SpatialTapGesture(coordinateSpace: .global).onEnded { tap in
+            // A tap inside the editor is for the cursor, not for dismissal.
+            guard !editorFrame.contains(tap.location) else { return }
+            typing = false
+        })
         .dwellThemed()
         // The recogniser can also finish by itself — the 120s cap, a final
         // result, or an error. Mirroring only on the Stop tap left a captured
         // reflection stranded in those cases.
+        .scrollDismissesKeyboard(.immediately)
+        // There was no way out of the keyboard at all: the composer fills the
+        // screen above it and nothing dismissed it.
         .onChange(of: speech?.state) { _, _ in sync() }
         .onDisappear { speech?.stop() }
         .onChange(of: pickedPhoto) { _, item in
@@ -208,6 +220,7 @@ struct RecordReflectionView: View {
                 .font(.dwellBody)
                 .lineLimit(2...6)
                 .foregroundStyle(t.textPrimary)
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { editorFrame = $0 }
 
             if draft.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text("A photo needs a few words with it.")
@@ -264,9 +277,10 @@ struct RecordReflectionView: View {
                 RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
                     .strokeBorder(t.border, lineWidth: 1)
             )
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { editorFrame = $0 }
             .overlay(alignment: .topLeading) {
                 if draft.body.isEmpty {
-                    Text("Say the true thing, not the tidy one.")
+                    Text("Be honest. No one sees this until they've posted too.")
                         .font(.dwellBody)
                         .foregroundStyle(t.textSecondary)
                         .padding(Space.lg + 8)

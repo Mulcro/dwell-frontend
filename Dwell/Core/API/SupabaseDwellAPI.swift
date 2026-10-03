@@ -126,7 +126,7 @@ final class SupabaseDwellAPI: DwellAPI {
             throw DwellError.notImplemented("Facebook sign-in")
         case .youversion:
             guard let youVersion else {
-                throw DwellError.notImplemented("YouVersion sign-in — YOUVERSION_APP_KEY isn't set")
+                throw DwellError.notImplemented("YouVersion sign-in, YOUVERSION_APP_KEY isn't set")
             }
             // Their flow, then a bridge that hands back a magic-link hash we
             // redeem for an ordinary Supabase session — so every RLS policy
@@ -650,7 +650,7 @@ final class SupabaseDwellAPI: DwellAPI {
         // failure always means the row didn't match this model — usually a
         // column that became nullable — so name that.
         if let decoding = error as? DecodingError {
-            return .network("The app couldn't read that response — it doesn't match "
+            return .network("The app couldn't read that response. It doesn't match "
                             + "what this build expects. \(Self.describe(decoding))")
         }
 

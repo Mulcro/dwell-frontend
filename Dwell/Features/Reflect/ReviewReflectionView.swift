@@ -34,7 +34,7 @@ struct ReviewReflectionView: View {
                          : "\(languageName), by Apple's service"))
         }
         rows.append(("character.bubble", "Translated for the group",
-                     "Written in \(languageName) — members read it in theirs"))
+                     "Written in \(languageName), members read it in theirs"))
         rows.append(("checkmark.shield", "Safety check",
                      "Nothing shared outside the group"))
         return rows
@@ -135,7 +135,8 @@ struct ReviewReflectionView: View {
         VoiceNoteCard(levels: draft.levels,
                       duration: SpeechRecognizer.durationLabel(draft.duration),
                       isPlaying: player.isPlaying,
-                      onPlay: playAction) {
+                      onPlay: playAction,
+                      showsWaveform: draft.mediaType == .voice) {
             HStack(alignment: .top, spacing: Space.md) {
                 Text(draft.body)
                     .font(.dwellBody)

@@ -14,14 +14,14 @@ final class MockDwellAPI: DwellAPI {
     enum Scenario: String, CaseIterable, Identifiable {
         case signedOut          = "Signed out"
         case noGroup            = "No group yet"
-        case forming            = "Forming — waiting for 1 more"
-        case dayOpenNotPosted   = "Day open — you haven't posted"
-        case postFlagged        = "Your post — flagged"
-        case postedBelow        = "Posted — group below threshold"
-        case dayUnlocked        = "Day unlocked — feed"
+        case forming            = "Forming, waiting for 1 more"
+        case dayOpenNotPosted   = "Day open, you haven't posted"
+        case postFlagged        = "Your post, flagged"
+        case postedBelow        = "Posted, group below threshold"
+        case dayUnlocked        = "Day unlocked, feed"
         case postedLate         = "Posted late"
         case nudgeWaiting       = "Nudge waiting for you"
-        case inactivityPrompt   = "3 silent days — Continue/Pause/End"
+        case inactivityPrompt   = "3 silent days, Continue/Pause/End"
         case paused             = "Paused"
         case completed          = "Completed"
         case abandoned          = "Abandoned"
@@ -207,8 +207,8 @@ final class MockDwellAPI: DwellAPI {
     ]
 
     private static let aiResponses: [UUID: String?] = [
-        Seed.maya.id:  "Calling her back was the anchor holding, not slipping. You noticed the drift and did something small and concrete about it — that's the verse doing its work, not just being read.",
-        Seed.priya.id: "Calling back was the whole verse, right there. You didn't just hear her — you made room for her.",
+        Seed.maya.id:  "Calling her back was the anchor holding, not slipping. You noticed the drift and did something small and concrete about it, that's the verse doing its work, not just being read.",
+        Seed.priya.id: "Calling back was the whole verse, right there. You didn't just hear her, you made room for her.",
         Seed.jordan.id: "Not wanting to talk and showing up anyway is its own kind of steadfast. You keep returning to the line; let it keep returning to you."
     ]
 
@@ -216,7 +216,7 @@ final class MockDwellAPI: DwellAPI {
         guard let priya = reflectionsStore.first(where: { $0.userId == Seed.priya.id && $0.dayInstanceId == today.id }) else { return }
         commentsStore = [
             Comment(id: UUID(), reflectionId: priya.id, userId: Seed.maya.id,
-                    content: "okay this one got me. calling back counts.",
+                    content: "okay this one got me. Calling back counts.",
                     createdAt: .now.addingTimeInterval(-14_400)),
             Comment(id: UUID(), reflectionId: priya.id, userId: Seed.daniel.id,
                     content: "My mum does the same thing. Going to try this tonight.",
@@ -235,7 +235,7 @@ final class MockDwellAPI: DwellAPI {
             insightsStore.append(AIInsight(
                 id: UUID(), groupId: Seed.groupId, dayInstanceId: today.id, targetUserId: nil,
                 scope: .dayInstance, type: .groupPulse,
-                content: "Everyone wrote about someone they'd stopped hearing. Priya's mother. Jordan's silence. Maya's drift. Nobody mentioned strangers — this is all about people already close.\n\nOne question for tonight: who in this group would tell you if you'd stopped listening to them?",
+                content: "Everyone wrote about someone they'd stopped hearing. Priya's mother. Jordan's silence. Maya's drift. Nobody mentioned strangers, this is all about people already close.\n\nOne question for tonight: who in this group would tell you if you'd stopped listening to them?",
                 createdAt: .now))
         }
 
@@ -243,7 +243,7 @@ final class MockDwellAPI: DwellAPI {
             insightsStore.append(AIInsight(
                 id: UUID(), groupId: Seed.groupId, dayInstanceId: today.id, targetUserId: Seed.maya.id,
                 scope: .dayInstance, type: .nudge,
-                content: "Your day's still open for 5 more hours. Hebrews calls hope an anchor — you've been the one holding steady all week. Say one line?",
+                content: "Your day's still open for 5 more hours. Hebrews calls hope an anchor, you've been the one holding steady all week. Say one line?",
                 createdAt: .now))
         }
 
@@ -252,7 +252,7 @@ final class MockDwellAPI: DwellAPI {
                 id: UUID(), groupId: Seed.groupId, dayInstanceId: today.id,
                 targetUserId: Seed.maya.id,   // one row per member, never deleted
                 scope: .groupChallenge, type: .inactivityPrompt,
-                content: "It's been quiet for a few days. No pressure and no catching up needed — today's page is open whenever one of you is ready.",
+                content: "It's been quiet for a few days. No pressure and no catching up needed. Today's page is open whenever one of you is ready.",
                 createdAt: .now))
         }
 
@@ -260,7 +260,7 @@ final class MockDwellAPI: DwellAPI {
             insightsStore.append(AIInsight(
                 id: UUID(), groupId: Seed.groupId, dayInstanceId: nil, targetUserId: nil,
                 scope: .groupChallenge, type: .endSummary,
-                content: "You came in wanting to be consistent. You left talking about people.\n\nWeek 1 was showing up — short entries, mostly about the reading itself. By the middle it was hope as something you had to choose on a Tuesday. Three separate entries end with you calling someone back. That's the application you kept choosing, not more reading.\n\nAcross the group, \u{201C}anchor\u{201D} landed in four languages on the same four phone calls home.",
+                content: "You came in wanting to be consistent. You left talking about people.\n\nWeek 1 was showing up, short entries, mostly about the reading itself. By the middle it was hope as something you had to choose on a Tuesday. Three separate entries end with you calling someone back. That's the application you kept choosing, not more reading.\n\nAcross the group, \u{201C}anchor\u{201D} landed in four languages on the same four phone calls home.",
                 createdAt: .now))
         }
 
@@ -268,7 +268,7 @@ final class MockDwellAPI: DwellAPI {
             insightsStore.append(AIInsight(
                 id: UUID(), groupId: Seed.groupId, dayInstanceId: nil, targetUserId: nil,
                 scope: .groupChallenge, type: .fallbackRecap,
-                content: "You got three days into Anchored together. That's three mornings you chose to open it — Hebrews, Isaiah, and Romans, with eleven reflections between you. It stalled, and that's allowed. The door's still here when you want it.",
+                content: "You got three days into Anchored together. That's three mornings you chose to open it, Hebrews, Isaiah, and Romans, with eleven reflections between you. It stalled, and that's allowed. The door's still here when you want it.",
                 createdAt: .now))
         }
     }

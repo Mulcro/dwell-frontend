@@ -144,7 +144,7 @@ struct SignUpView: View {
     private static func friendlySignUp(_ error: Error) -> String {
         let raw = error.localizedDescription.lowercased()
         if raw.contains("session") || raw.contains("not authenticated") {
-            return "Account created, but sign-in needs email confirmation — which isn't switched on yet. Use Google for now."
+            return "Account created, but sign-in needs email confirmation, which isn't switched on yet. Use Google for now."
         }
         if raw.contains("already registered") || raw.contains("already been registered") {
             return "That email already has an account. Log in instead."

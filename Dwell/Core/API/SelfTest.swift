@@ -35,49 +35,49 @@ enum SelfTest {
             let user: DwellUser
             if let existing = try? await api.currentUser() {
                 user = existing
-                log("ℹ️  using existing session — \(user.name) (not signing in)")
+                log("ℹ️  using existing session, \(user.name) (not signing in)")
             } else {
                 user = try await api.signIn(email: email, password: password)
-                log("✅ signIn — \(user.name) · tz=\(user.timezone) · lang=\(user.preferredLanguage)")
+                log("✅ signIn, \(user.name) · tz=\(user.timezone) · lang=\(user.preferredLanguage)")
             }
 
             let plans = try await api.listPlans()
-            log("✅ listPlans — \(plans.count): " + plans.map { "\($0.title) [img=\($0.imagePath ?? "nil")]" }.joined(separator: " | "))
+            log("✅ listPlans, \(plans.count): " + plans.map { "\($0.title) [img=\($0.imagePath ?? "nil")]" }.joined(separator: " | "))
 
             if let first = plans.first {
                 let days = try await api.getPlanDays(planId: first.id)
-                log("✅ getPlanDays — \(days.count) refs: \(days.map(\.passageRef).prefix(3).joined(separator: ", "))…")
+                log("✅ getPlanDays, \(days.count) refs: \(days.map(\.passageRef).prefix(3).joined(separator: ", "))…")
             }
 
             let passage = try await api.passage(ref: "HEB.6.19")
-            log("✅ get-passage — \(passage.reference) [\(passage.translation) id=\(passage.bibleId)] cached=\(passage.cached) \(passage.content.prefix(40))…")
+            log("✅ get-passage, \(passage.reference) [\(passage.translation) id=\(passage.bibleId)] cached=\(passage.cached) \(passage.content.prefix(40))…")
 
             guard let group = try await api.myGroup() else {
-                log("⚠️  myGroup — none for this account")
+                log("⚠️  myGroup, none for this account")
                 return
             }
-            log("✅ myGroup — \(group.name) · \(group.challengeStatus.rawValue) · freq=\(group.frequency.rawValue) · promptPending=\(group.promptPending) · tz=\(group.timezone ?? "nil")")
+            log("✅ myGroup, \(group.name) · \(group.challengeStatus.rawValue) · freq=\(group.frequency.rawValue) · promptPending=\(group.promptPending) · tz=\(group.timezone ?? "nil")")
 
             let members = try await api.members(groupId: group.id)
             let profiles = try await api.users(ids: members.map(\.userId))
-            log("✅ members — \(members.count): \(profiles.map(\.name).joined(separator: ", "))")
+            log("✅ members, \(members.count): \(profiles.map(\.name).joined(separator: ", "))")
 
             let days = try await api.dayInstances(groupId: group.id)
-            log("✅ dayInstances — \(days.count), statuses: \(days.map { $0.status.rawValue }.joined(separator: ","))")
+            log("✅ dayInstances, \(days.count), statuses: \(days.map { $0.status.rawValue }.joined(separator: ","))")
 
             if let today = days.last {
                 let reflections = try await api.reflections(dayInstanceId: today.id)
-                log("✅ reflections — day \(today.dayIndex): \(reflections.count) visible, mine=\(reflections.filter { $0.userId == user.id }.count)")
+                log("✅ reflections, day \(today.dayIndex): \(reflections.count) visible, mine=\(reflections.filter { $0.userId == user.id }.count)")
                 for r in reflections {
                     log("     · \(r.moderationStatus.rawValue) late=\(r.isLate) ai=\(r.aiResponse != nil ? "yes" : "no") \(r.displayBody.prefix(40))…")
                 }
             }
 
             let insights = try await api.insights(groupId: group.id, type: nil)
-            log("✅ insights — \(insights.count): \(Set(insights.map { $0.type.rawValue }).sorted().joined(separator: ", "))")
+            log("✅ insights, \(insights.count): \(Set(insights.map { $0.type.rawValue }).sorted().joined(separator: ", "))")
 
             let board = try await api.leaderboard(groupId: group.id, weekStart: nil)
-            log("✅ leaderboard — \(board.count) rows\(board.isEmpty ? " (expected before first Monday)" : "")")
+            log("✅ leaderboard, \(board.count) rows\(board.isEmpty ? " (expected before first Monday)" : "")")
 
             log("🎉 all calls decoded")
         } catch {

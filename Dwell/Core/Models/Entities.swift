@@ -179,6 +179,10 @@ struct Reflection: Identifiable, Codable, Hashable {
     /// response ... back onto the row", but §3.1's schema has no column for it
     /// — see SCHEMA-GAPS.md. Modelled here as the doc's prose describes.
     var aiResponse: String?
+    /// `ai_response_translated jsonb` — language code → the companion's reply
+    /// translated into that language; null when everyone already reads the
+    /// author's language. Same shape and semantics as `translated_text`.
+    var aiResponseTranslated: [String: String]?
 
     enum CodingKeys: String, CodingKey {
         case id, content, transcript, language
@@ -195,6 +199,7 @@ struct Reflection: Identifiable, Codable, Hashable {
         case mediaPeaks = "media_peaks"
         case createdAt = "created_at"
         case aiResponse = "ai_response"
+        case aiResponseTranslated = "ai_response_translated"
     }
 
     /// What the reader sees: transcript for voice, content for text.
@@ -205,6 +210,15 @@ struct Reflection: Identifiable, Codable, Hashable {
 
     /// Only approved reflections count toward the threshold (§4.2).
     var countsTowardThreshold: Bool { moderationStatus == .approved }
+
+    /// The companion's reply as the viewer reads it: translated into their
+    /// language when a translation exists, otherwise as written.
+    func companionResponse(in viewerLanguage: String) -> String? {
+        guard let response = aiResponse else { return nil }
+        guard language != viewerLanguage,
+              let translated = aiResponseTranslated?[viewerLanguage] else { return response }
+        return translated
+    }
 }
 
 struct Comment: Identifiable, Codable, Hashable {

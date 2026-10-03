@@ -61,7 +61,7 @@ enum HomeState: Equatable {
         case .promptPending:          return "It's been quiet"
         case .noOpenDay:              return "Nothing open today"
         case .readyToReflect(let day):    return "Day \(day)"
-        case .waitingOnGroup(let day, _, _): return "Day \(day) — you're in"
+        case .waitingOnGroup(let day, _, _): return "Day \(day), you're in"
         case .dayOpen(let day, _, _):        return "Day \(day) is open"
         }
     }
@@ -85,10 +85,10 @@ enum HomeState: Equatable {
         case .noOpenDay:
             return "Your rhythm doesn't include today. The next day opens on schedule."
         case .readyToReflect:
-            return "Read the passage, then say the true thing."
+            return "Read today's passage, then share where it landed."
         case .waitingOnGroup(_, let posted, let needed):
             let remaining = max(needed - posted, 1)
-            return "\(posted) of \(needed) posted — \(remaining) more \(remaining == 1 ? "opens" : "open") the day."
+            return "\(posted) of \(needed) posted, \(remaining) more \(remaining == 1 ? "opens" : "open") the day."
         case .dayOpen(_, let posted, let total):
             return "\(posted) of \(total) posted. Everyone's words are readable."
         }

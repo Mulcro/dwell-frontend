@@ -164,7 +164,7 @@ struct ProfileView: View {
                     Text("Current Plan")
                         .font(.dwellBody)
                         .foregroundStyle(t.textSecondary)
-                    Text(session.plan?.title ?? "—")
+                    Text(session.plan?.title ?? "-")
                         .font(.dwellBodyMd)
                         .foregroundStyle(t.textPrimary)
                 }

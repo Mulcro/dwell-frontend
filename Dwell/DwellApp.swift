@@ -25,7 +25,7 @@ struct DwellApp: App {
                 api: SupabaseDwellAPI(url: url, publishableKey: key)))
         } else {
             if DwellConfig.keyLooksLikeASecret {
-                assertionFailure("SUPABASE_PUBLISHABLE_KEY looks like a secret key — that bypasses RLS.")
+                assertionFailure("SUPABASE_PUBLISHABLE_KEY looks like a secret key. That bypasses RLS.")
             }
             let named = ProcessInfo.processInfo.environment["DWELL_SCENARIO"]
             let scenario = MockDwellAPI.Scenario.allCases

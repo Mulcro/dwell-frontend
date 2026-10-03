@@ -10,6 +10,7 @@ struct HomeView: View {
     @State private var showFeed = false
     @State private var showPulse = false
     @State private var nudging = false
+    @State private var nudgedMarker: String?
 
     private var group: DwellGroup? { session.group.value ?? nil }
     private var state: HomeState { HomeState.resolve(session) }
@@ -190,18 +191,23 @@ struct HomeView: View {
         VStack(spacing: Space.lg) {
             ReflectionCardStack(sealed: true)
 
-            StatusPill(text: "\(posted) of \(session.members.count) in · opens at \(needed)")
+            StatusPill(text: "\(posted) of \(session.members.count) in")
 
             MemberAvatarRow(members: avatarRow)
 
-            Text("Sealed until half the crew is here")
+            // Not "sealed": you've posted, so nothing is being withheld from
+            // you as a consequence of anything you did. The day simply hasn't
+            // opened for the group yet, and until someone else posts there is
+            // nothing behind the seal to withhold.
+            Text(waitingTitle(posted: posted, needed: needed))
                 .font(.dwellCardTitle)
                 .foregroundStyle(t.textPrimary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
-            PrimaryButton(title: nudging ? "Nudging…" : "Send the group a gentle nudge",
-                          icon: "bell") {
+            PrimaryButton(title: nudgeTitle,
+                          enabled: !hasNudgedToday && !nudging,
+                          icon: hasNudgedToday ? "checkmark" : "bell") {
                 Task { await nudge() }
             }
 
@@ -209,6 +215,19 @@ struct HomeView: View {
             nextOpensNote
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// Reads as waiting on the group, not as a lock on you.
+    private func waitingTitle(posted: Int, needed: Int) -> String {
+        let remaining = max(needed - posted, 0)
+        if posted <= 1 {
+            return remaining == 1
+                ? "You're first in. One more post unlocks today's reflections."
+                : "You're first in. \(remaining) more posts unlock today's reflections."
+        }
+        return remaining == 1
+            ? "\(posted) of you are in. One more post unlocks today's reflections."
+            : "\(posted) of you are in. \(remaining) more posts unlock today's reflections."
     }
 
     /// Threshold cleared — the day is readable.
@@ -434,19 +453,19 @@ struct HomeView: View {
         let posted = session.postedCount
 
         guard stillNeeded > 0 else {
-            return "The day is open. Add yours to read what everyone else wrote."
+            return "Today's reflections are unlocked. Add yours to read what everyone else wrote."
         }
 
         guard posted > 0 else {
             return stillNeeded == 1
-                ? "Nobody's posted yet. One reflection opens the day — it could be yours."
-                : "Nobody's posted yet. It opens once \(stillNeeded) of you have — yours could be the first."
+                ? "Nobody's posted yet. One post unlocks today's reflections, and it could be yours."
+                : "Nobody's posted yet. They unlock once \(stillNeeded) of you have posted. Yours could be the first."
         }
 
         let who = posted == 1 ? "1 friend is in" : "\(posted) friends are in"
         return stillNeeded == 1
-            ? "\(who). One more opens the day — yours could be the one."
-            : "\(who). \(stillNeeded) more open the day — yours could be one of them."
+            ? "\(who). One more post unlocks today's reflections, and yours could be the one."
+            : "\(who). \(stillNeeded) more posts unlock today's reflections, and yours could be one of them."
     }
 
     private func openDetail(posted: Int, total: Int) -> String {
@@ -515,12 +534,40 @@ struct HomeView: View {
             .compactMap { session.memberProfiles[$0.userId]?.name.split(separator: " ").first.map(String.init) }
     }
 
+    /// One nudge per day. Being able to send it repeatedly turns a gentle
+    /// reminder into pestering, which is the opposite of what it is for.
+    /// The marker names the account as well as the day, so one member's
+    /// nudge doesn't disable the button for a group-mate who signs in on the
+    /// same device.
+    private var nudgeMarker: String? {
+        guard let dayId = session.currentDay?.id, let me = session.me?.id else { return nil }
+        return "\(me.uuidString):\(dayId.uuidString)"
+    }
+
+    private var hasNudgedToday: Bool {
+        guard let marker = nudgeMarker else { return false }
+        if nudgedMarker == marker { return true }
+        return UserDefaults.standard.string(forKey: Self.nudgeKey) == marker
+    }
+
+    private var nudgeTitle: String {
+        if nudging { return "Nudging…" }
+        return hasNudgedToday ? "You've nudged the group today"
+                              : "Send the group a gentle nudge"
+    }
+
+    private static let nudgeKey = "home.lastNudgedDay"
+
     private func nudge() async {
+        guard !hasNudgedToday, let marker = nudgeMarker else { return }
         nudging = true
         defer { nudging = false }
         Haptics.tap()
-        // No nudge endpoint exists — the cron writes ai_insights rows. Tracked
+        // No nudge endpoint exists. The cron writes ai_insights rows. Tracked
         // in the backend request doc.
         try? await Task.sleep(for: .milliseconds(600))
+        nudgedMarker = marker
+        // Survives a relaunch, so the limit isn't reset by closing the app.
+        UserDefaults.standard.set(marker, forKey: Self.nudgeKey)
     }
 }

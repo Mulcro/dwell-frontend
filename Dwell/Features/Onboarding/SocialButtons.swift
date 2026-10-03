@@ -50,8 +50,8 @@ struct SocialButtonRow: View {
         guard provider == .google else {
             Haptics.warning()
             onError(provider == .apple
-                    ? "Sign in with Apple isn't set up yet — use YouVersion or Google."
-                    : "Facebook sign-in isn't set up yet — use YouVersion or Google.")
+                    ? "Sign in with Apple isn't set up yet. Use YouVersion or Google."
+                    : "Facebook sign-in isn't set up yet. Use YouVersion or Google.")
             return
         }
         working = provider

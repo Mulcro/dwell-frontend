@@ -18,9 +18,12 @@ struct LogInView: View {
 
     var body: some View {
         // Scrolls so the keyboard slides over the lower buttons instead of
-        // compressing the stack and shoving the header off the top.
-        ScrollView {
-            VStack(alignment: .leading, spacing: Space.xl) {
+        // compressing the stack and shoving the header off the top. The
+        // geometry frame centers the block, so the sheet's spare height
+        // splits evenly above and below instead of pooling at the bottom.
+        GeometryReader { geo in
+            ScrollView {
+                VStack(alignment: .leading, spacing: Space.xl) {
                 HStack {
                     Text("Welcome Back!")
                         .font(.dwellTitle)
@@ -34,7 +37,7 @@ struct LogInView: View {
                     .buttonStyle(PressScale())
                     .accessibilityLabel("Close")
                 }
-                .padding(.top, Space.xl)
+                .padding(.vertical, Space.lg)
 
                 DwellField(label: "Email", placeholder: "you@email.com",
                            error: error, keyboard: .emailAddress, text: $email)
@@ -66,11 +69,12 @@ struct LogInView: View {
                                 })
 
                 SecondaryButton(title: "I have an invite link", action: onInviteLink)
+                }
+                .padding(.horizontal, Space.gutter)
+                .frame(minHeight: geo.size.height)
             }
-            .padding(.horizontal, Space.gutter)
-            .padding(.bottom, Space.lg)
+            .scrollIndicators(.hidden)
         }
-        .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.interactively)
         .dwellThemed()
         // Full height: at 680 the keyboard compressed the card and pushed

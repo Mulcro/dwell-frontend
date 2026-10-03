@@ -406,7 +406,13 @@ final class SessionStore {
     }
 
     func bootstrap() async {
-        group = .loading
+        // Blank the route only when nothing is resolved yet (first boot, or
+        // retry after a failure). Sign-up, sign-in and the onboarding tail
+        // all re-bootstrap mid-flow, and flipping to .loading there tore
+        // down OnboardingFlow and rebuilt it with its state reset — which is
+        // how a brand-new account kept landing on Start-or-Join with the
+        // earlier steps skipped and Back dead.
+        if case .loaded = group {} else { group = .loading }
         do {
             me = try await api.currentUser()
             await syncProfileIfNeeded()

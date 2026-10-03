@@ -75,20 +75,14 @@ struct RecordReflectionView: View {
             .padding(.horizontal, Space.gutter)
             .padding(.bottom, Space.lg)
         }
+        .simultaneousGesture(TapGesture().onEnded { typing = false })
         .dwellThemed()
         // The recogniser can also finish by itself — the 120s cap, a final
         // result, or an error. Mirroring only on the Stop tap left a captured
         // reflection stranded in those cases.
-        .scrollDismissesKeyboard(.interactively)
+        .scrollDismissesKeyboard(.immediately)
         // There was no way out of the keyboard at all: the composer fills the
         // screen above it and nothing dismissed it.
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") { typing = false }
-                    .font(.dwellBodyMd)
-            }
-        }
         .onChange(of: speech?.state) { _, _ in sync() }
         .onDisappear { speech?.stop() }
         .onChange(of: pickedPhoto) { _, item in

@@ -78,15 +78,9 @@ struct ReflectionThreadView: View {
                 composer
             }
         }
+        .simultaneousGesture(TapGesture().onEnded { writing = false })
         .dwellThemed()
-        .scrollDismissesKeyboard(.interactively)
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") { writing = false }
-                    .font(.dwellBodyMd)
-            }
-        }
+        .scrollDismissesKeyboard(.immediately)
         .toast($toast)
         .task { await load() }
     }

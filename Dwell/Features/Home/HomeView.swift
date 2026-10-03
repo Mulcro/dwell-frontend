@@ -194,7 +194,11 @@ struct HomeView: View {
 
             MemberAvatarRow(members: avatarRow)
 
-            Text("Sealed until half the crew is here")
+            // Not "sealed": you've posted, so nothing is being withheld from
+            // you as a consequence of anything you did. The day simply hasn't
+            // opened for the group yet, and until someone else posts there is
+            // nothing behind the seal to withhold.
+            Text(waitingTitle(posted: posted, needed: needed))
                 .font(.dwellCardTitle)
                 .foregroundStyle(t.textPrimary)
                 .multilineTextAlignment(.center)
@@ -209,6 +213,19 @@ struct HomeView: View {
             nextOpensNote
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// Reads as waiting on the group, not as a lock on you.
+    private func waitingTitle(posted: Int, needed: Int) -> String {
+        let remaining = max(needed - posted, 0)
+        if posted <= 1 {
+            return remaining == 1
+                ? "You're first in. One more opens the day."
+                : "You're first in. \(remaining) more opens the day."
+        }
+        return remaining == 1
+            ? "\(posted) of you are in. One more opens the day."
+            : "\(posted) of you are in. \(remaining) more opens the day."
     }
 
     /// Threshold cleared — the day is readable.

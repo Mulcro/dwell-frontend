@@ -74,11 +74,14 @@ struct ReflectionThreadView: View {
                     .padding(.bottom, Space.xl)
                 }
                 .scrollIndicators(.hidden)
+                // Dismissal lives on the scroll content, not the whole
+                // screen, so a tap inside the reply field to move the cursor
+                // doesn't close the keyboard out from under it.
+                .simultaneousGesture(TapGesture().onEnded { writing = false })
 
                 composer
             }
         }
-        .simultaneousGesture(TapGesture().onEnded { writing = false })
         .dwellThemed()
         .scrollDismissesKeyboard(.immediately)
         .toast($toast)

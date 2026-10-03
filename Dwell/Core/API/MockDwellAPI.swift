@@ -590,7 +590,8 @@ final class MockDwellAPI: DwellAPI {
     }
 
     func getPlanDays(planId: UUID) async throws -> [PlanDay] {
-        try await tick(); return Seed.anchoredDays.filter { $0.planChallengeId == planId }
+        try await tick()
+        return (Seed.anchoredDays + Seed.jamesDays).filter { $0.planChallengeId == planId }
     }
 
     func passage(ref: String) async throws -> Passage {

@@ -26,7 +26,7 @@ enum Seed {
         youversionPlanId: "mock-anchored-hope-7",
         youversionDeepLink: "https://www.bible.com/reading-plans/mock-anchored-hope-7",
         // The detail-screen columns (02b), so mock mode exercises the full
-        // layout. `james` stays bare to exercise the degraded one.
+        // layout.
         planDescription: "Seven days of holding on when life pulls hard. For groups walking through a heavy season together.",
         keyVerse: "We have this hope as an anchor for the soul, firm and secure.",
         keyVerseRef: "Hebrews 6:19"
@@ -39,8 +39,21 @@ enum Seed {
         sourceType: .youversionPlan,
         dayCount: 7,
         youversionPlanId: "mock-psalms-7",
-        youversionDeepLink: nil
+        youversionDeepLink: nil,
+        planDescription: "Seven psalms for building the kind of faith that bends without breaking. Honest prayers for hard seasons.",
+        keyVerse: "Why, my soul, are you downcast? Put your hope in God.",
+        keyVerseRef: "Psalm 42:11"
     )
+
+    static let jamesDays: [PlanDay] = [
+        PlanDay(planChallengeId: jamesPlanId, dayIndex: 1, passageRef: "PSA.1", title: "Rooted"),
+        PlanDay(planChallengeId: jamesPlanId, dayIndex: 2, passageRef: "PSA.13", title: "How long, Lord?"),
+        PlanDay(planChallengeId: jamesPlanId, dayIndex: 3, passageRef: "PSA.27", title: "Whom shall I fear?"),
+        PlanDay(planChallengeId: jamesPlanId, dayIndex: 4, passageRef: "PSA.42", title: "Why so downcast?"),
+        PlanDay(planChallengeId: jamesPlanId, dayIndex: 5, passageRef: "PSA.46", title: "Be still"),
+        PlanDay(planChallengeId: jamesPlanId, dayIndex: 6, passageRef: "PSA.73", title: "When my feet almost slipped"),
+        PlanDay(planChallengeId: jamesPlanId, dayIndex: 7, passageRef: "PSA.139", title: "Searched and known")
+    ]
 
     static var plans: [PlanChallenge] { [anchored, james] }
 

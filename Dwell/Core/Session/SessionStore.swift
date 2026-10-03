@@ -146,7 +146,7 @@ final class SessionStore {
                 id: UUID(), groupId: g.id, dayInstanceId: currentDay?.id,
                 targetUserId: me?.id, scope: .dayInstance, type: .nudge,
                 content: "Yesterday you wrote about wanting to slow down. "
-                       + "Today's passage is short — five minutes is enough.",
+                       + "Today's passage is short. Five minutes is enough.",
                 createdAt: .now)
         }
         #endif

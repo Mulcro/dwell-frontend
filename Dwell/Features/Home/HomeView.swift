@@ -10,6 +10,7 @@ struct HomeView: View {
     @State private var showFeed = false
     @State private var showPulse = false
     @State private var nudging = false
+    @State private var nudgedDayId: UUID?
 
     private var group: DwellGroup? { session.group.value ?? nil }
     private var state: HomeState { HomeState.resolve(session) }
@@ -190,7 +191,7 @@ struct HomeView: View {
         VStack(spacing: Space.lg) {
             ReflectionCardStack(sealed: true)
 
-            StatusPill(text: "\(posted) of \(session.members.count) in · opens at \(needed)")
+            StatusPill(text: "\(posted) of \(session.members.count) in")
 
             MemberAvatarRow(members: avatarRow)
 
@@ -204,8 +205,9 @@ struct HomeView: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
-            PrimaryButton(title: nudging ? "Nudging…" : "Send the group a gentle nudge",
-                          icon: "bell") {
+            PrimaryButton(title: nudgeTitle,
+                          enabled: !hasNudgedToday && !nudging,
+                          icon: hasNudgedToday ? "checkmark" : "bell") {
                 Task { await nudge() }
             }
 
@@ -220,12 +222,12 @@ struct HomeView: View {
         let remaining = max(needed - posted, 0)
         if posted <= 1 {
             return remaining == 1
-                ? "You're first in. One more opens the day."
-                : "You're first in. \(remaining) more opens the day."
+                ? "You're first in. One more reflection unlocks today's reading."
+                : "You're first in. \(remaining) more reflections unlock today's reading."
         }
         return remaining == 1
-            ? "\(posted) of you are in. One more opens the day."
-            : "\(posted) of you are in. \(remaining) more opens the day."
+            ? "\(posted) of you are in. One more reflection unlocks today's reading."
+            : "\(posted) of you are in. \(remaining) more reflections unlock today's reading."
     }
 
     /// Threshold cleared — the day is readable.
@@ -451,19 +453,19 @@ struct HomeView: View {
         let posted = session.postedCount
 
         guard stillNeeded > 0 else {
-            return "The day is open. Add yours to read what everyone else wrote."
+            return "Today's reading is unlocked. Add yours to read what everyone else wrote."
         }
 
         guard posted > 0 else {
             return stillNeeded == 1
-                ? "Nobody's posted yet. One reflection opens the day — it could be yours."
-                : "Nobody's posted yet. It opens once \(stillNeeded) of you have — yours could be the first."
+                ? "Nobody's posted yet. One reflection unlocks today's reading, and it could be yours."
+                : "Nobody's posted yet. It unlocks once \(stillNeeded) of you have posted. Yours could be the first."
         }
 
         let who = posted == 1 ? "1 friend is in" : "\(posted) friends are in"
         return stillNeeded == 1
-            ? "\(who). One more opens the day — yours could be the one."
-            : "\(who). \(stillNeeded) more open the day — yours could be one of them."
+            ? "\(who). One more unlocks today's reading, and yours could be the one."
+            : "\(who). \(stillNeeded) more unlock today's reading, and yours could be one of them."
     }
 
     private func openDetail(posted: Int, total: Int) -> String {
@@ -532,12 +534,32 @@ struct HomeView: View {
             .compactMap { session.memberProfiles[$0.userId]?.name.split(separator: " ").first.map(String.init) }
     }
 
+    /// One nudge per day. Being able to send it repeatedly turns a gentle
+    /// reminder into pestering, which is the opposite of what it is for.
+    private var hasNudgedToday: Bool {
+        guard let dayId = session.currentDay?.id else { return false }
+        if nudgedDayId == dayId { return true }
+        return UserDefaults.standard.string(forKey: Self.nudgeKey) == dayId.uuidString
+    }
+
+    private var nudgeTitle: String {
+        if nudging { return "Nudging…" }
+        return hasNudgedToday ? "You've nudged the group today"
+                              : "Send the group a gentle nudge"
+    }
+
+    private static let nudgeKey = "home.lastNudgedDay"
+
     private func nudge() async {
+        guard !hasNudgedToday, let dayId = session.currentDay?.id else { return }
         nudging = true
         defer { nudging = false }
         Haptics.tap()
-        // No nudge endpoint exists — the cron writes ai_insights rows. Tracked
+        // No nudge endpoint exists. The cron writes ai_insights rows. Tracked
         // in the backend request doc.
         try? await Task.sleep(for: .milliseconds(600))
+        nudgedDayId = dayId
+        // Survives a relaunch, so the limit isn't reset by closing the app.
+        UserDefaults.standard.set(dayId.uuidString, forKey: Self.nudgeKey)
     }
 }

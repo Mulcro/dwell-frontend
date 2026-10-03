@@ -34,7 +34,7 @@ struct ReviewReflectionView: View {
                          : "\(languageName), by Apple's service"))
         }
         rows.append(("character.bubble", "Translated for the group",
-                     "Written in \(languageName) — members read it in theirs"))
+                     "Written in \(languageName), members read it in theirs"))
         rows.append(("checkmark.shield", "Safety check",
                      "Nothing shared outside the group"))
         return rows

@@ -367,7 +367,7 @@ enum DwellError: LocalizedError, Equatable {
         case .notFound(let what):    return "\(what) couldn't be found."
         case .conflict(let message): return message
         case .planHasNoDays:         return "This plan has no days set up yet."
-        case .aiUnavailable:         return "We couldn't reach the companion just now. Nothing was saved — try again."
+        case .aiUnavailable:         return "We couldn't reach the companion just now. Nothing was saved. Try again."
         case .notImplemented(let w): return "\(w) isn't wired up yet."
         case .moderationRefused(let m): return m
         case .network(let m):        return m

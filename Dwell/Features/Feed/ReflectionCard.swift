@@ -138,7 +138,7 @@ struct ReflectionCard: View {
                     .fixedSize()
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Spoken reflection with no recording — the transcript is below.")
+            .accessibilityLabel("Spoken reflection with no recording. The transcript is below.")
         }
     }
 

@@ -41,9 +41,9 @@ enum Frequency: String, Codable, Hashable, CaseIterable, Identifiable {
 
     var detail: String {
         switch self {
-        case .daily:        return "Every day — the strongest rhythm."
+        case .daily:        return "Every day, the strongest rhythm."
         case .weekdays:     return "Monday to Friday."
-        case .fourPerWeek:  return "Mon, Tue, Thu, Fri — where the research says change happens."
+        case .fourPerWeek:  return "Mon, Tue, Thu, Fri, where the research says change happens."
         case .threePerWeek: return "Monday, Wednesday, Friday."
         case .custom:       return "Pick your own days."
         }

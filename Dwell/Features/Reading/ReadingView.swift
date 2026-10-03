@@ -222,7 +222,7 @@ struct ReadingView: View {
     }
 
     private func dateLabel(for dayIndex: Int) -> String {
-        guard let day = session.days.first(where: { $0.dayIndex == dayIndex }) else { return "—" }
+        guard let day = session.days.first(where: { $0.dayIndex == dayIndex }) else { return "-" }
         return day.date.formatted(.dateTime.month(.abbreviated).day())
     }
 

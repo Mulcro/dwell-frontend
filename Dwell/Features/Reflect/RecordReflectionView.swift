@@ -270,7 +270,7 @@ struct RecordReflectionView: View {
             )
             .overlay(alignment: .topLeading) {
                 if draft.body.isEmpty {
-                    Text("Be honest — no one sees this until they've posted too.")
+                    Text("Be honest. No one sees this until they've posted too.")
                         .font(.dwellBody)
                         .foregroundStyle(t.textSecondary)
                         .padding(Space.lg + 8)

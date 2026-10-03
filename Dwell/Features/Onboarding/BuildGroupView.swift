@@ -88,7 +88,7 @@ struct BuildGroupView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 14))
                 .foregroundStyle(t.textSecondary)
-            TextField("Search YouVersion Plans", text: $search)
+            TextField("Search Plans", text: $search)
                 .font(.dwellBody)
                 .textFieldStyle(.plain)
                 .foregroundStyle(t.textPrimary)

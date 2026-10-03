@@ -114,7 +114,7 @@ struct OnboardingFlow: View {
                                  onSignedIn: { step = .stats })
 
         case .stats:
-            BibleStatsView(onBack: session.isSignedIn ? nil : { step = .signUp },
+            BibleStatsView(onBack: session.isSignedIn ? { backToLogIn() } : { step = .signUp },
                            onContinue: { explainerStart = 0; step = .howItWorks })
 
         case .howItWorks:
@@ -159,6 +159,20 @@ struct OnboardingFlow: View {
 
         case .notifications:
             EnableNotificationsView(onDone: { session.finishOnboarding() })
+        }
+    }
+
+    /// Stats is the first screen of a signed-in user's walk, so its Back
+    /// can't return to the sign-up form. It signs out and lands on Log In,
+    /// which is also the only way off the wrong account before a group
+    /// exists. Logging into an account that has a group routes straight
+    /// Home from there — the router sends a loaded group home on its own.
+    private func backToLogIn() {
+        Task {
+            try? await session.api.signOut()
+            session.finishOnboarding()
+            await session.bootstrap()
+            showLogIn = true
         }
     }
 

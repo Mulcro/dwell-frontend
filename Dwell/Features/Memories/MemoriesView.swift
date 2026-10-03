@@ -14,7 +14,9 @@ struct MemoriesView: View {
 
     @Environment(SessionStore.self) private var session
     @Environment(\.dwell) private var t
-    @State private var mode: Mode = .timeline
+    // DWELL_MEMORIES=calendar opens the grid straight away, for screenshots.
+    @State private var mode: Mode =
+        ProcessInfo.processInfo.environment["DWELL_MEMORIES"] == "calendar" ? .calendar : .timeline
     @State private var opened: Reflection?
     @State private var pastPulses: [AIInsight] = []
     @State private var challengePhotos: [URL] = []
@@ -292,7 +294,7 @@ struct MemoriesView: View {
 
     /// Months are derived from the day instances rather than the calendar, so
     /// a challenge that hasn't started doesn't draw an empty grid.
-    private var months: [(label: String, dates: [Date])] {
+    private var months: [(label: String, leading: Int, dates: [Date])] {
         let days = session.days
         guard !days.isEmpty else { return [] }
         var cal = Calendar(identifier: .gregorian)
@@ -312,7 +314,10 @@ struct MemoriesView: View {
             let dates = range.compactMap {
                 cal.date(byAdding: .day, value: $0 - 1, to: first)
             }
-            return (formatter.string(from: first), dates)
+            // Blank cells before the 1st, so each date lands under its
+            // weekday and the grid reads as a real month.
+            let leading = (cal.component(.weekday, from: first) - cal.firstWeekday + 7) % 7
+            return (formatter.string(from: first), leading, dates)
         }
     }
 
@@ -333,6 +338,9 @@ struct MemoriesView: View {
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Space.sm),
                                                  count: 7),
                                   spacing: Space.sm) {
+                            ForEach(0..<month.leading, id: \.self) { _ in
+                                Color.clear.aspectRatio(1, contentMode: .fit)
+                            }
                             ForEach(month.dates, id: \.self) { date in
                                 dayCell(date)
                             }
@@ -351,7 +359,8 @@ struct MemoriesView: View {
         return Button {
             if let reflection { opened = reflection }
         } label: {
-            CalendarDayCell(reflection: reflection, number: number)
+            CalendarDayCell(reflection: reflection, number: number,
+                            isToday: Calendar.current.isDateInToday(date))
         }
         .buttonStyle(PressScale())
         .disabled(reflection == nil)
@@ -376,25 +385,31 @@ struct MemoriesView: View {
     }
 }
 
-/// One circle in the calendar grid (`Memories · Calendar`, `3161:26303`).
+/// One square in the calendar grid (`Memories · Calendar`, `3161:26303`).
 ///
 /// A day whose reflection carries a photo shows the photograph itself; any
-/// other posted day is an ink disc with the date, and a day without a
-/// reflection stays a quiet number. Each cell signs its own URL on appear,
-/// the same pattern as `OnThisDayCard`, so a grid left on screen past the
-/// hour re-signs as cells are recreated rather than going blank at once.
+/// other posted day is an ink square with the date, and a day without a
+/// reflection stays a quiet number. Today carries an accent ring even before
+/// you post, so the grid never looks stuck on yesterday. Each cell signs its
+/// own URL on appear, the same pattern as `OnThisDayCard`, so a grid left on
+/// screen past the hour re-signs as cells are recreated rather than going
+/// blank at once.
 private struct CalendarDayCell: View {
     let reflection: Reflection?
     let number: Int
+    var isToday: Bool = false
 
     @Environment(SessionStore.self) private var session
     @Environment(\.dwell) private var t
     @State private var photoURL: URL?
 
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
+    }
+
     var body: some View {
         ZStack {
-            Circle()
-                .fill(reflection == nil ? t.surfaceRaised : t.ink)
+            shape.fill(reflection == nil ? t.surfaceRaised : t.ink)
             if photoURL == nil {
                 Text("\(number)")
                     .font(.dwellSmallMd)
@@ -412,7 +427,12 @@ private struct CalendarDayCell: View {
                 }
             }
         }
-        .clipShape(Circle())
+        .clipShape(shape)
+        .overlay {
+            if isToday {
+                shape.strokeBorder(t.accent, lineWidth: 2)
+            }
+        }
         .task(id: reflection?.id) { await loadPhoto() }
     }
 

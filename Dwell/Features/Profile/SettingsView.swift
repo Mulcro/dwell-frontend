@@ -220,6 +220,40 @@ struct SettingsView: View {
     }
 
     #if DEBUG
+    @State private var movingDay = false
+
+    private func debugDayButton(_ label: String, icon: String, action: String) -> some View {
+        Button {
+            Task { await moveDay(action) }
+        } label: {
+            HStack(spacing: Space.sm) {
+                Image(systemName: icon).font(.system(size: 11))
+                Text(label).font(.dwellCaptionMd)
+            }
+            .foregroundStyle(t.textPrimary)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .overlay(Capsule().strokeBorder(t.borderStrong, lineWidth: 1))
+        }
+        .buttonStyle(PressScale())
+        .disabled(movingDay)
+    }
+
+    private func moveDay(_ action: String) async {
+        guard let group = session.group.value ?? nil else { return }
+        movingDay = true
+        defer { movingDay = false }
+        do {
+            let day = try await session.api.debugDay(groupId: group.id, action: action)
+            await session.reload()
+            toast = .success("Now on day \(day)")
+        } catch {
+            // The 409s carry screen-ready messages ("already on day 1;
+            // nothing to rewind"), so show them as they came.
+            toast = .failure(error.localizedDescription)
+        }
+    }
+
     /// Switches for states that only occur after days of real inactivity.
     ///
     /// Compiled out of release builds entirely. They exist because the
@@ -255,6 +289,20 @@ struct SettingsView: View {
                             .font(.dwellCaption).foregroundStyle(t.textSecondary)
                     }
                 }
+                Divider().overlay(t.border)
+                VStack(alignment: .leading, spacing: Space.md) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Day control").font(.dwellBody)
+                        Text("Moves this group's day on the live backend (item 48). Rewind refuses once a group-mate has posted on the day.")
+                            .font(.dwellCaption).foregroundStyle(t.textSecondary)
+                    }
+                    HStack(spacing: Space.md) {
+                        debugDayButton("Rewind", icon: "backward.fill", action: "rewind")
+                        debugDayButton("Advance", icon: "forward.fill", action: "advance")
+                        Spacer()
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .tint(t.accent)
             .foregroundStyle(t.textPrimary)

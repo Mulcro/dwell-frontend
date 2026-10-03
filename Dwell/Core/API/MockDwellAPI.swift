@@ -594,6 +594,11 @@ final class MockDwellAPI: DwellAPI {
         return (Seed.anchoredDays + Seed.jamesDays).filter { $0.planChallengeId == planId }
     }
 
+    func debugDay(groupId: UUID, action: String) async throws -> Int {
+        try await tick()
+        throw DwellError.notImplemented("Day control talks to the live backend; the mock's days are fixed per scenario.")
+    }
+
     func passage(ref: String) async throws -> Passage {
         try await tick()
         guard let p = Seed.passages[ref] else { throw DwellError.notFound("Passage \(ref)") }

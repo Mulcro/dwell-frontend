@@ -165,6 +165,13 @@ protocol DwellAPI {
     /// Passage text is always fetched live by USFM ref; only the plan's table
     /// of contents is mocked (§3.4).
     func passage(ref: String) async throws -> Passage
+
+    /// Debug-only: moves the group a day forward or back through the gated
+    /// `/debug-day` function (item 48). `action` is "advance" or "rewind";
+    /// returns the resulting day index. The server answers 404 when its
+    /// `DEBUG_DAY_ENABLED` gate is off, which is the state outside our one
+    /// project.
+    func debugDay(groupId: UUID, action: String) async throws -> Int
 }
 
 enum AuthProvider: String, Codable, Hashable, CaseIterable, Identifiable {

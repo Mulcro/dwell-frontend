@@ -123,7 +123,12 @@ struct OnboardingFlow: View {
                               onDone: { step = .startOrJoin })
 
         case .startOrJoin:
-            StartOrJoinView(onBack: { explainerStart = 3; step = .howItWorks },
+            StartOrJoinView(onBack: (session.group.value ?? nil) != nil
+                                // "Start a new plan" from a finished group
+                                // enters here; back means Home, not the
+                                // explainer they never came through.
+                                ? { session.finishOnboarding() }
+                                : { explainerStart = 3; step = .howItWorks },
                             onCreate: { step = .buildGroup },
                             onJoined: {
                                 // Order matters: hold the flow open *before*

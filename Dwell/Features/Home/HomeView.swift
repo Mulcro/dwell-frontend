@@ -12,8 +12,9 @@ struct HomeView: View {
     @State private var nudging = false
     @State private var nudgedMarker: String?
     /// The recap being read full screen — weekly from its card, or the
-    /// challenge recap from the completion CTA.
+    /// challenge recap from inside the celebration.
     @State private var openRecap: AIInsight?
+    @State private var showComplete = false
 
     private var group: DwellGroup? { session.group.value ?? nil }
     private var state: HomeState { HomeState.resolve(session) }
@@ -78,9 +79,12 @@ struct HomeView: View {
             if ProcessInfo.processInfo.environment["DWELL_REFLECT"] == "1" { showReflect = true }
             if ProcessInfo.processInfo.environment["DWELL_FEED"] == "1" { showFeed = true }
         }
-        // DWELL_RECAP=1 opens the end recap once it has loaded, for
-        // screenshots — keyed to the insight because it arrives after boot.
+        // Screenshot hooks, keyed to the insight because it loads after
+        // boot: DWELL_COMPLETE=1 opens the celebration, DWELL_RECAP=1 the
+        // recap itself.
         .task(id: session.endRecap) {
+            if ProcessInfo.processInfo.environment["DWELL_COMPLETE"] == "1",
+               session.endRecap != nil { showComplete = true }
             if ProcessInfo.processInfo.environment["DWELL_RECAP"] == "1",
                let recap = session.endRecap { openRecap = recap }
         }
@@ -89,6 +93,9 @@ struct HomeView: View {
         }
         .fullScreenCover(item: $openRecap) { recap in
             RecapView(insight: recap, onClose: { openRecap = nil })
+        }
+        .fullScreenCover(isPresented: $showComplete) {
+            ChallengeCompleteView(onClose: { showComplete = false })
         }
         .fullScreenCover(isPresented: $showReflect) {
             DayFlow(startAt: reflectStart, onClose: {
@@ -274,8 +281,8 @@ struct HomeView: View {
         .frame(maxWidth: .infinity)
     }
 
-    /// Figma: "Challenge End · Complete" — the celebration, with the recap
-    /// one tap away. Confetti rides the card so the rest of Home stays calm.
+    /// The finished state on Home: the celebration (confetti and all) is a
+    /// tap away, and so is starting the next thing — create or join.
     private var completedCard: some View {
         VStack(spacing: Space.lg) {
             PlanCoverThumb(title: session.plan?.title ?? "Your plan",
@@ -283,50 +290,29 @@ struct HomeView: View {
                            size: 132,
                            corner: Radius.lg)
 
-            StatusPill(text: "Day \(session.plan?.dayCount ?? session.days.count) of \(session.plan?.dayCount ?? session.days.count) Complete")
-
-            Text("Congratulations!\nYou finished together.")
+            Text("You finished it")
                 .font(.dwellTitle)
                 .foregroundStyle(t.textPrimary)
                 .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
 
-            Text(completedDetail)
+            Text("You cleared the last day together.")
                 .font(.dwellBody)
                 .foregroundStyle(t.textSecondary)
                 .multilineTextAlignment(.center)
-                .lineSpacing(LineSpacing.body)
-                .fixedSize(horizontal: false, vertical: true)
 
-            MemberAvatarRow(members: avatarRow.map { ($0.name, $0.url, false) })
+            PrimaryButton(title: "See what these \(session.plan?.dayCount ?? session.days.count) days held",
+                          accent: true) {
+                showComplete = true
+            }
 
-            if let recap = session.endRecap {
-                PrimaryButton(title: "See what these \(session.plan?.dayCount ?? session.days.count) days held",
-                              accent: true) {
-                    openRecap = recap
-                }
+            SecondaryButton(title: "Start a new plan") {
+                // Start-or-Join already offers exactly the two next moves:
+                // make a group, or join one with a code.
+                session.onboardingStep = .startOrJoin
+                session.resetOnboarding()
             }
         }
         .frame(maxWidth: .infinity)
-        .overlay { ConfettiView().padding(-Space.gutter) }
-    }
-
-    /// "All five of you posted on the last day. 5 of 7 days opened as a
-    /// group." — both halves computed, neither generated.
-    private var completedDetail: String {
-        let total = session.members.count
-        let lastDayPosted = session.days.last?.participationCount ?? 0
-        let opened = session.days.filter { $0.status != .missed }.count
-        let planDays = session.plan?.dayCount ?? session.days.count
-        let first = lastDayPosted >= total && total > 0
-            ? "All \(spelled(total)) of you posted on the last day."
-            : "\(lastDayPosted) of \(total) posted on the last day."
-        return "\(first) \(opened) of \(planDays) days opened as a group."
-    }
-
-    private func spelled(_ n: Int) -> String {
-        let words = ["zero", "one", "two", "three", "four", "five", "six", "seven"]
-        return n < words.count ? words[n] : "\(n)"
     }
 
     /// Entry to the Monday recap, styled like the pulse card.

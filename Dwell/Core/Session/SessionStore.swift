@@ -94,6 +94,11 @@ final class SessionStore {
     var inactivityPrompt: AIInsight?
     /// The companion's synthesis of the day, written once the day unlocks.
     var groupPulse: AIInsight?
+    /// The challenge-end card: end_summary, or fallback_recap when the
+    /// challenge closed with little material. Latest row wins.
+    var endRecap: AIInsight?
+    /// The most recent Monday recap, if one has been written.
+    var weeklyRecap: AIInsight?
 
     #if DEBUG
     /// Preview switches for the two states that only occur after days of real
@@ -269,8 +274,11 @@ final class SessionStore {
         case .inactivityPrompt:
             inactivityPrompt = insight
 
-        default:
-            break
+        case .endSummary, .fallbackRecap:
+            endRecap = insight
+
+        case .weeklyRecap:
+            weeklyRecap = insight
         }
     }
 
@@ -462,6 +470,12 @@ final class SessionStore {
         groupPulse = try? await api.insights(groupId: g.id, type: .groupPulse)
             .last { $0.dayInstanceId == currentDay?.id }
 
+        endRecap = (try? await api.insights(groupId: g.id, type: .endSummary))?.last
+        if endRecap == nil {
+            endRecap = (try? await api.insights(groupId: g.id, type: .fallbackRecap))?.last
+        }
+        weeklyRecap = (try? await api.insights(groupId: g.id, type: .weeklyRecap))?.last
+
         // Not the insight row: one is written per member and never deleted,
         // so the row's presence would strand people on that screen forever.
         inactivityPromptPending = g.promptPending
@@ -488,6 +502,8 @@ final class SessionStore {
         pendingNudge = nil
         inactivityPrompt = nil
         groupPulse = nil
+        endRecap = nil
+        weeklyRecap = nil
         inactivityPromptPending = false
         onboardingActive = false
         realtime?.cancel()
@@ -533,6 +549,8 @@ final class SessionStore {
         pendingNudge = nil
         inactivityPrompt = nil
         groupPulse = nil
+        endRecap = nil
+        weeklyRecap = nil
         inactivityPromptPending = false
     }
 

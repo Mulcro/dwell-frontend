@@ -11,6 +11,9 @@ struct HomeView: View {
     @State private var showPulse = false
     @State private var nudging = false
     @State private var nudgedMarker: String?
+    /// The recap being read full screen — weekly from its card, or the
+    /// challenge recap from the completion CTA.
+    @State private var openRecap: AIInsight?
 
     private var group: DwellGroup? { session.group.value ?? nil }
     private var state: HomeState { HomeState.resolve(session) }
@@ -39,6 +42,9 @@ struct HomeView: View {
                         .padding(.top, Space.lg)
 
                     pulseCard
+                        .padding(.top, Space.lg)
+
+                    weeklyRecapCard
                         .padding(.top, Space.lg)
 
                     body(for: state)
@@ -72,8 +78,17 @@ struct HomeView: View {
             if ProcessInfo.processInfo.environment["DWELL_REFLECT"] == "1" { showReflect = true }
             if ProcessInfo.processInfo.environment["DWELL_FEED"] == "1" { showFeed = true }
         }
+        // DWELL_RECAP=1 opens the end recap once it has loaded, for
+        // screenshots — keyed to the insight because it arrives after boot.
+        .task(id: session.endRecap) {
+            if ProcessInfo.processInfo.environment["DWELL_RECAP"] == "1",
+               let recap = session.endRecap { openRecap = recap }
+        }
         .fullScreenCover(isPresented: $showFeed) {
             FeedView(onClose: { showFeed = false })
+        }
+        .fullScreenCover(item: $openRecap) { recap in
+            RecapView(insight: recap, onClose: { openRecap = nil })
         }
         .fullScreenCover(isPresented: $showReflect) {
             DayFlow(startAt: reflectStart, onClose: {
@@ -99,6 +114,9 @@ struct HomeView: View {
 
         case let .dayOpen(_, posted, total):
             open(posted: posted, total: total)
+
+        case .completed:
+            completedCard
 
         default:
             // forming / paused / completed / ended / noOpenDay / noGroup all
@@ -254,6 +272,102 @@ struct HomeView: View {
             nextOpensNote
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// Figma: "Challenge End · Complete" — the celebration, with the recap
+    /// one tap away. Confetti rides the card so the rest of Home stays calm.
+    private var completedCard: some View {
+        VStack(spacing: Space.lg) {
+            PlanCoverThumb(title: session.plan?.title ?? "Your plan",
+                           imageURL: planArt,
+                           size: 132,
+                           corner: Radius.lg)
+
+            StatusPill(text: "Day \(session.plan?.dayCount ?? session.days.count) of \(session.plan?.dayCount ?? session.days.count) Complete")
+
+            Text("Congratulations!\nYou finished together.")
+                .font(.dwellTitle)
+                .foregroundStyle(t.textPrimary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(completedDetail)
+                .font(.dwellBody)
+                .foregroundStyle(t.textSecondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(LineSpacing.body)
+                .fixedSize(horizontal: false, vertical: true)
+
+            MemberAvatarRow(members: avatarRow.map { ($0.name, $0.url, false) })
+
+            if let recap = session.endRecap {
+                PrimaryButton(title: "See what these \(session.plan?.dayCount ?? session.days.count) days held",
+                              accent: true) {
+                    openRecap = recap
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .overlay { ConfettiView().padding(-Space.gutter) }
+    }
+
+    /// "All five of you posted on the last day. 5 of 7 days opened as a
+    /// group." — both halves computed, neither generated.
+    private var completedDetail: String {
+        let total = session.members.count
+        let lastDayPosted = session.days.last?.participationCount ?? 0
+        let opened = session.days.filter { $0.status != .missed }.count
+        let planDays = session.plan?.dayCount ?? session.days.count
+        let first = lastDayPosted >= total && total > 0
+            ? "All \(spelled(total)) of you posted on the last day."
+            : "\(lastDayPosted) of \(total) posted on the last day."
+        return "\(first) \(opened) of \(planDays) days opened as a group."
+    }
+
+    private func spelled(_ n: Int) -> String {
+        let words = ["zero", "one", "two", "three", "four", "five", "six", "seven"]
+        return n < words.count ? words[n] : "\(n)"
+    }
+
+    /// Entry to the Monday recap, styled like the pulse card.
+    @ViewBuilder
+    private var weeklyRecapCard: some View {
+        if let recap = session.weeklyRecap {
+            Button { openRecap = recap } label: {
+                HStack(spacing: Space.md) {
+                    ZStack {
+                        Circle().fill(t.accent.opacity(0.15))
+                        Image(systemName: "calendar")
+                            .font(.system(size: 15))
+                            .foregroundStyle(t.accent)
+                    }
+                    .frame(width: 36, height: 36)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Your week in review")
+                            .font(.dwellBodyMd)
+                            .foregroundStyle(t.textPrimary)
+                        Text(recap.payload(in: session.me?.preferredLanguage ?? "en")?.headline
+                             ?? "What the week kept coming back to")
+                            .font(.dwellSmall)
+                            .foregroundStyle(t.textSecondary)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(t.textSecondary)
+                }
+                .padding(Space.lg)
+                .background(t.surface)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                        .strokeBorder(t.border, lineWidth: 1)
+                )
+            }
+            .buttonStyle(PressScale())
+        }
     }
 
     private var genericCard: some View {

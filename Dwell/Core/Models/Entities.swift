@@ -339,10 +339,20 @@ struct PulsePayload: Codable, Hashable {
     /// an untranslated summary.
     var summary: String?
     var content: String?
+    /// Recap card fields (end_summary / fallback_recap / weekly_recap).
+    /// Days the group cleared against the days that counted; both null on a
+    /// weekly recap when no day opened that week but someone still posted.
+    var daysShowedUp: Int?
+    var daysTotal: Int?
+    /// weekly_recap only.
+    var weekStart: String?
 
     enum CodingKeys: String, CodingKey {
         case headline, lede, members, summary, content
         case reflectionCount = "reflection_count"
+        case daysShowedUp = "days_showed_up"
+        case daysTotal = "days_total"
+        case weekStart = "week_start"
     }
 
     /// Whichever of the two the backend sent.

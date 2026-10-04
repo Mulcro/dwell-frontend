@@ -261,7 +261,20 @@ final class MockDwellAPI: DwellAPI {
                 id: UUID(), groupId: Seed.groupId, dayInstanceId: nil, targetUserId: nil,
                 scope: .groupChallenge, type: .endSummary,
                 content: "You came in wanting to be consistent. You left talking about people.\n\nWeek 1 was showing up, short entries, mostly about the reading itself. By the middle it was hope as something you had to choose on a Tuesday. Three separate entries end with you calling someone back. That's the application you kept choosing, not more reading.\n\nAcross the group, \u{201C}anchor\u{201D} landed in four languages on the same four phone calls home.",
-                createdAt: .now))
+                createdAt: .now,
+                // The recap card (contract, 2026-10-03), so the completed
+                // scenario demos the full screen.
+                payload: PulsePayload(
+                    headline: "hope as something you choose, then act on",
+                    members: [
+                        PulseMember(userId: Seed.maya.id, line: "Asked the questions that got replies"),
+                        PulseMember(userId: Seed.priya.id, line: "Wrote in two languages, always about home"),
+                        PulseMember(userId: Seed.jordan.id, line: "Shared a voice note for the first time"),
+                        PulseMember(userId: Seed.daniel.id, line: "Kept coming back to rest")
+                    ],
+                    reflectionCount: 22,
+                    daysShowedUp: 6,
+                    daysTotal: 7)))
         }
 
         if scenario == .abandoned || scenario == .expiredIncomplete {

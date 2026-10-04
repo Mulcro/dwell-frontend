@@ -100,6 +100,10 @@ enum InsightType: String, Codable, Hashable {
     case inactivityPrompt = "inactivity_prompt"
     case endSummary = "end_summary"
     case fallbackRecap = "fallback_recap"
+    /// Written every Monday 00:00 UTC for the week just ended. Added
+    /// 2026-10-03; decoding would throw on the whole insight fetch without
+    /// this case.
+    case weeklyRecap = "weekly_recap"
 }
 
 /// `reflections.moderation_status` is a plain text column defaulting to

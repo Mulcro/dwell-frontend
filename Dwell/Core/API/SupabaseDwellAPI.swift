@@ -377,17 +377,29 @@ final class SupabaseDwellAPI: DwellAPI {
     /// without this the app would land on a different group between launches.
     /// Newest first, and `DWELL_GROUP` pins a specific one for demos.
     func myGroup() async throws -> DwellGroup? {
-        let rows: [DwellGroup] = try await client.from("groups").select()
-            .order("created_at", ascending: false)
-            .execute().value
+        // my_groups orders the rows by the backend's rule (still going first,
+        // then most recent activity), so row 1 is the current group. Sorting
+        // by created_at here picked a finished group over an older one just
+        // joined.
+        let summaries = try await myGroups()
 
         #if DEBUG
         if let wanted = ProcessInfo.processInfo.environment["DWELL_GROUP"],
-           let match = rows.first(where: { $0.name.localizedCaseInsensitiveContains(wanted) }) {
-            return match
+           let match = summaries.first(where: { $0.name.localizedCaseInsensitiveContains(wanted) }) {
+            return try await group(id: match.id)
         }
         #endif
-        return rows.first
+        guard let current = summaries.first else { return nil }
+        return try await group(id: current.id)
+    }
+
+    func myGroups() async throws -> [GroupSummary] {
+        try await client.rpc("my_groups").execute().value
+    }
+
+    private func group(id: UUID) async throws -> DwellGroup {
+        try await client.from("groups").select()
+            .eq("id", value: id).single().execute().value
     }
 
     func members(groupId: UUID) async throws -> [GroupMember] {
@@ -546,8 +558,13 @@ final class SupabaseDwellAPI: DwellAPI {
             .createSignedURL(path: path, expiresIn: 60 * 60)
     }
 
+    /// Filters on `listed` itself: RLS also returns an unlisted plan to a
+    /// member of a group reading it, and that read is indistinguishable from
+    /// this one.
     func listPlans() async throws -> [PlanChallenge] {
-        try await client.from("plan_challenges").select().order("title").execute().value
+        try await client.from("plan_challenges").select()
+            .eq("listed", value: true)
+            .order("title").execute().value
     }
 
     func getPlan(id: UUID) async throws -> PlanChallenge {

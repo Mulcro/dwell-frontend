@@ -43,6 +43,9 @@ struct OnboardingFlow: View {
     }
     /// Guards the one-time entry correction below.
     @State private var resolvedEntry = false
+    /// The finished group's name, carried into Build Group by "Same crew,
+    /// new plan". Empty for an ordinary create.
+    @State private var newGroupName = ""
     /// Which page the explainer opens on: 0 going forward from Stats,
     /// the last page when Back from Start-or-Join re-enters it.
     @State private var explainerStart = 0
@@ -137,7 +140,11 @@ struct OnboardingFlow: View {
                                     step = .howItWorks
                                 }
                             },
-                            onCreate: { step = .buildGroup },
+                            onCreate: { newGroupName = ""; step = .buildGroup },
+                            onSameCrew: {
+                                newGroupName = session.group.value??.name ?? ""
+                                step = .buildGroup
+                            },
                             onJoined: {
                                 // Order matters: hold the flow open *before*
                                 // the group loads, or the router briefly
@@ -149,7 +156,8 @@ struct OnboardingFlow: View {
                             })
 
         case .buildGroup:
-            BuildGroupView(onBack: { step = .startOrJoin },
+            BuildGroupView(initialName: newGroupName,
+                           onBack: { step = .startOrJoin },
                            onNext: { name, plan in step = .frequency(name: name, plan: plan) })
 
         case let .frequency(name, plan):

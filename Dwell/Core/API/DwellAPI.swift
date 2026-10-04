@@ -84,7 +84,12 @@ protocol DwellAPI {
                        pushToken: String?) async throws -> DwellUser
 
     /// The caller's group. One group per user for MVP (Open Questions, 9/19).
+    /// The group the app opens into: the one still going, otherwise the most
+    /// recently finished, so a finished challenge keeps its celebration until
+    /// the next one starts.
     func myGroup() async throws -> DwellGroup?
+    /// Every group the caller is in, current first (`rpc/my_groups`).
+    func myGroups() async throws -> [GroupSummary]
     func members(groupId: UUID) async throws -> [GroupMember]
     func users(ids: [UUID]) async throws -> [DwellUser]
 

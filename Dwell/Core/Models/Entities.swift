@@ -120,6 +120,32 @@ struct DwellGroup: Identifiable, Codable, Hashable {
     var inviteURL: String { "dwell.to/\(inviteToken)" }
 }
 
+/// One row of `rpc/my_groups` (KAN-46): every group the caller is in, the
+/// one still going first, otherwise the most recently active. Counts are the
+/// whole group's, not what RLS would show of sealed reflections.
+struct GroupSummary: Codable, Hashable, Identifiable {
+    let id: UUID
+    var name: String
+    var challengeStatus: ChallengeStatus
+    var planChallengeId: UUID
+    var planTitle: String
+    var planImagePath: String?
+    var dayCount: Int
+    var memberCount: Int
+    var reflectionCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id, name
+        case challengeStatus = "challenge_status"
+        case planChallengeId = "plan_challenge_id"
+        case planTitle = "plan_title"
+        case planImagePath = "plan_image_path"
+        case dayCount = "day_count"
+        case memberCount = "member_count"
+        case reflectionCount = "reflection_count"
+    }
+}
+
 struct GroupMember: Codable, Hashable, Identifiable {
     var groupId: UUID
     var userId: UUID

@@ -1,6 +1,10 @@
 import SwiftUI
 
 /// Figma: "Start or Join Group". The fork — create, or enter a code.
+///
+/// Reached from "Start a new plan" on a finished group, the same screen is
+/// "Challenge End · What's Next": the group's name, a same-crew option, the
+/// create and join cards, and the archive of finished challenges.
 struct StartOrJoinView: View {
     /// True when reached from "Start a new plan" on a finished group: not a
     /// step in a walk, so no progress bar — just the back arrow.
@@ -9,6 +13,9 @@ struct StartOrJoinView: View {
     /// group has no earlier step to go back to.
     var onBack: (() -> Void)?
     var onCreate: () -> Void = {}
+    /// What's Next only: a new group for the same people. Each challenge is
+    /// its own group (KAN-29), so this is create with the name carried over.
+    var onSameCrew: () -> Void = {}
     var onJoined: () -> Void = {}
 
     @Environment(SessionStore.self) private var session
@@ -17,6 +24,8 @@ struct StartOrJoinView: View {
     @State private var preview: GroupPreview?
     @State private var message: String?
     @State private var joining = false
+    @State private var archived: [GroupSummary] = []
+    @State private var viewing: GroupSummary?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -29,29 +38,48 @@ struct StartOrJoinView: View {
                     OnboardingHeader(progress: 0.42, onBack: onBack)
                 }
 
-                Text("Start a group, or join one.")
-                    .font(.dwellTitle)
-                    .lineSpacing(LineSpacing.title)
-                    .foregroundStyle(t.textPrimary)
-                    .padding(.top, Space.lg)
-                    .padding(.bottom, Space.xl)
+                if standalone {
+                    whatsNext
+                } else {
+                    Text("Start a group, or join one.")
+                        .font(.dwellTitle)
+                        .lineSpacing(LineSpacing.title)
+                        .foregroundStyle(t.textPrimary)
+                        .padding(.top, Space.lg)
+                        .padding(.bottom, Space.xl)
 
-                makeGroupCard
+                    makeGroupCard
 
-                joinCard.padding(.top, Space.lg)
+                    joinCard.padding(.top, Space.lg)
 
-                Spacer()
+                    Spacer()
+                }
 
-                PrimaryButton(title: joining ? "Joining…" : "Continue",
-                              enabled: preview != nil,
-                              loading: joining) {
-                    Task { await join() }
+                if !standalone || preview != nil {
+                    PrimaryButton(title: joining ? "Joining…" : "Continue",
+                                  enabled: preview != nil,
+                                  loading: joining) {
+                        Task { await join() }
+                    }
+                    .padding(.top, standalone ? Space.md : 0)
                 }
             }
             .padding(.horizontal, Space.gutter)
             .padding(.bottom, Space.xl)
         }
         .dwellThemed()
+        .task(id: standalone) {
+            guard standalone else { return }
+            let groups = (try? await session.api.myGroups()) ?? []
+            archived = groups.filter { $0.challengeStatus.isEnded }
+            // DWELL_ARCHIVE=1 opens the first archived recap, for screenshots.
+            if ProcessInfo.processInfo.environment["DWELL_ARCHIVE"] == "1" {
+                viewing = archived.first { $0.id != session.group.value??.id }
+            }
+        }
+        .fullScreenCover(item: $viewing) { group in
+            ArchivedRecapView(group: group, onClose: { viewing = nil })
+        }
         // A magic link (dwell://join/4K9QRT) lands the code here rather than
         // making someone retype what they just tapped. RootView parks it on
         // the session; this is the only place that consumes it.
@@ -61,6 +89,106 @@ struct StartOrJoinView: View {
             code = token
             await lookUp(token)
         }
+    }
+
+    // MARK: - What's Next
+
+    private var whatsNext: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.lg) {
+                Text(session.group.value??.name ?? "What's next")
+                    .font(.dwellTitle)
+                    .foregroundStyle(t.textPrimary)
+                    .padding(.top, Space.lg)
+
+                Text("Keep going?")
+                    .font(.dwellBodyMd)
+                    .foregroundStyle(t.textPrimary)
+
+                sameCrewRow
+                makeGroupCard
+                joinCard
+
+                if !archived.isEmpty {
+                    Text("Archived challenges")
+                        .font(.dwellBodyMd)
+                        .foregroundStyle(t.textPrimary)
+                        .padding(.top, Space.md)
+
+                    ForEach(archived) { group in
+                        archiveRow(group)
+                    }
+
+                    Text("Archived groups stay readable forever. Nobody can post into them again.")
+                        .font(.dwellCaption)
+                        .foregroundStyle(t.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.bottom, Space.xl)
+        }
+        .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    /// Not the comp's "Keep your rhythm, threshold and day windows": the
+    /// backend makes this a fresh group that everyone rejoins with a new
+    /// code, and the rhythm is chosen again.
+    private var sameCrewRow: some View {
+        Button(action: onSameCrew) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Same crew, new plan")
+                        .font(.dwellBodyMd)
+                        .foregroundStyle(t.textPrimary)
+                    Text("Same name, a new plan. Everyone rejoins with a fresh code.")
+                        .font(.dwellSmall)
+                        .foregroundStyle(t.textSecondary)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: Space.sm)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(t.textSecondary)
+            }
+            .padding(Space.lg)
+            .background(t.surface)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                    .strokeBorder(t.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(PressScale())
+    }
+
+    private func archiveRow(_ group: GroupSummary) -> some View {
+        HStack(spacing: Space.md) {
+            PlanCoverThumb(title: group.planTitle,
+                           imageURL: group.planImagePath.flatMap { session.api.planImageURL(path: $0) },
+                           size: 64,
+                           corner: Radius.md)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(group.name)
+                    .font(.dwellBodyMd)
+                    .foregroundStyle(t.textPrimary)
+                Text("\(group.memberCount) members · \(group.reflectionCount) reflections")
+                    .font(.dwellSmall)
+                    .foregroundStyle(t.textSecondary)
+            }
+            Spacer(minLength: Space.sm)
+            Button("View") { viewing = group }
+                .font(.dwellBodyMd)
+                .foregroundStyle(t.textPrimary)
+                .buttonStyle(PressScale())
+        }
+        .padding(Space.md)
+        .background(t.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                .strokeBorder(t.border, lineWidth: 1)
+        )
     }
 
     /// The create path is the louder of the two — sky behind it, a cluster of

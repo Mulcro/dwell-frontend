@@ -78,6 +78,7 @@ struct HomeView: View {
         .task {
             if ProcessInfo.processInfo.environment["DWELL_REFLECT"] == "1" { showReflect = true }
             if ProcessInfo.processInfo.environment["DWELL_FEED"] == "1" { showFeed = true }
+            if ProcessInfo.processInfo.environment["DWELL_WHATSNEXT"] == "1" { startNewPlan() }
         }
         // Screenshot hooks, keyed to the insight because it loads after
         // boot: DWELL_COMPLETE=1 opens the celebration, DWELL_RECAP=1 the
@@ -124,6 +125,9 @@ struct HomeView: View {
 
         case .completed:
             completedCard
+
+        case .endedEarly:
+            endedCard
 
         default:
             // forming / paused / completed / ended / noOpenDay / noGroup all
@@ -305,14 +309,47 @@ struct HomeView: View {
                 showComplete = true
             }
 
-            SecondaryButton(title: "Start a new plan") {
-                // Start-or-Join already offers exactly the two next moves:
-                // make a group, or join one with a code.
-                session.onboardingStep = .startOrJoin
-                session.resetOnboarding()
-            }
+            SecondaryButton(title: "Start a new plan", action: startNewPlan)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// Abandoned or expired: no celebration, but the lighter recap
+    /// (fallback_recap) and the way on are both still here.
+    private var endedCard: some View {
+        VStack(spacing: Space.lg) {
+            PlanCoverThumb(title: session.plan?.title ?? "Your plan",
+                           imageURL: planArt,
+                           size: 132,
+                           corner: Radius.lg)
+
+            Text(state.headline)
+                .font(.dwellTitle)
+                .foregroundStyle(t.textPrimary)
+                .multilineTextAlignment(.center)
+
+            Text(state.detail)
+                .font(.dwellBody)
+                .foregroundStyle(t.textSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let recap = session.endRecap {
+                PrimaryButton(title: "Look back on it", accent: true) {
+                    openRecap = recap
+                }
+            }
+
+            SecondaryButton(title: "Start a new plan", action: startNewPlan)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Opens What's Next: same crew, make a group, join with a code, and the
+    /// archive.
+    private func startNewPlan() {
+        session.onboardingStep = .startOrJoin
+        session.resetOnboarding()
     }
 
     /// Entry to the Monday recap, styled like the pulse card.

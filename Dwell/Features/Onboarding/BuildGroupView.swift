@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Figma: "Build New Group" — name it, pick a challenge.
 struct BuildGroupView: View {
+    /// Prefilled by "Same crew, new plan"; still editable.
+    var initialName: String = ""
     var onBack: () -> Void = {}
     var onNext: (String, PlanChallenge) -> Void = { _, _ in }
 
@@ -71,6 +73,7 @@ struct BuildGroupView: View {
             .padding(.bottom, Space.xl)
         }
         .dwellThemed()
+        .onAppear { if name.isEmpty { name = initialName } }
         .task { await load() }
         .fullScreenCover(item: $detailPlan) { plan in
             PlanDetailView(plan: plan,

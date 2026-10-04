@@ -10,6 +10,10 @@ import SwiftUI
 /// member brought, the thread the days kept returning to, and the counts.
 struct RecapView: View {
     let insight: AIInsight
+    /// Set when showing an archived group, whose name and members aren't the
+    /// session's current group.
+    var groupName: String? = nil
+    var names: [UUID: String] = [:]
     var onClose: () -> Void = {}
 
     @Environment(SessionStore.self) private var session
@@ -18,7 +22,14 @@ struct RecapView: View {
     private var viewerLanguage: String { session.me?.preferredLanguage ?? "en" }
     private var payload: PulsePayload? { insight.payload(in: viewerLanguage) }
     private var isWeekly: Bool { insight.type == .weeklyRecap }
-    private var groupName: String { session.group.value??.name ?? "Your group" }
+    private var displayGroupName: String {
+        groupName ?? session.group.value??.name ?? "Your group"
+    }
+
+    private func name(for userId: UUID) -> String {
+        if userId == session.me?.id { return "You" }
+        return names[userId] ?? session.name(for: userId)
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -80,9 +91,9 @@ struct RecapView: View {
     /// counts are null (a weekly recap for a week where no day opened).
     private var title: String {
         if let up = payload?.daysShowedUp, let total = payload?.daysTotal {
-            return "\(groupName) showed up \(up) of the \(total) days."
+            return "\(displayGroupName) showed up \(up) of the \(total) days."
         }
-        return isWeekly ? "This week in \(groupName)." : "What these days held."
+        return isWeekly ? "This week in \(displayGroupName)." : "What these days held."
     }
 
     private func broughtCard(_ members: [PulseMember]) -> some View {
@@ -99,11 +110,11 @@ struct RecapView: View {
             VStack(alignment: .leading, spacing: Space.lg) {
                 ForEach(members) { member in
                     HStack(alignment: .center, spacing: Space.md) {
-                        PhotoAvatar(name: session.name(for: member.userId),
+                        PhotoAvatar(name: name(for: member.userId),
                                     url: session.avatarURL(for: member.userId),
                                     size: 40)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(session.name(for: member.userId))
+                            Text(name(for: member.userId))
                                 .font(.dwellBodyMd)
                                 .foregroundStyle(t.textPrimary)
                             Text(member.line)

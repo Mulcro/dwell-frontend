@@ -229,6 +229,22 @@ final class MockDwellAPI: DwellAPI {
     }
 
     private func seedInsights(scenario: Scenario) {
+        insightsStore.append(AIInsight(
+            id: UUID(), groupId: Self.soulRestId, dayInstanceId: nil, targetUserId: nil,
+            scope: .groupChallenge, type: .endSummary,
+            content: "Seven days of the Psalms, and the thread was rest you had to choose.",
+            createdAt: .now.addingTimeInterval(-86_400 * 30),
+            payload: PulsePayload(
+                headline: "rest as something you practise, not something you wait for",
+                members: [
+                    PulseMember(userId: Seed.maya.id, line: "Kept the group chat honest"),
+                    PulseMember(userId: Seed.priya.id, line: "Prayed in three languages"),
+                    PulseMember(userId: Seed.daniel.id, line: "Never missed a morning")
+                ],
+                reflectionCount: 97,
+                daysShowedUp: 7,
+                daysTotal: 7)))
+
         guard let today = days.last else { return }
 
         if scenario == .dayUnlocked || scenario == .postedLate {
@@ -483,6 +499,34 @@ final class MockDwellAPI: DwellAPI {
     }
 
     func myGroup() async throws -> DwellGroup? { try await tick(); return group }
+
+    /// Two finished challenges sit behind the current group, so What's Next
+    /// has an archive to show. Soul Rest carries a recap card; Lent with
+    /// Roomies has none, which is the case View has to handle.
+    static let soulRestId = UUID(uuidString: "00000000-0000-0000-0000-0000000000B7")!
+    static let lentId = UUID(uuidString: "00000000-0000-0000-0000-0000000000B8")!
+
+    func myGroups() async throws -> [GroupSummary] {
+        try await tick()
+        guard let g = group else { return [] }
+        let plan = Seed.plans.first { $0.id == g.planChallengeId }
+        let current = GroupSummary(
+            id: g.id, name: g.name, challengeStatus: g.challengeStatus,
+            planChallengeId: g.planChallengeId, planTitle: plan?.title ?? "",
+            planImagePath: plan?.imagePath, dayCount: plan?.dayCount ?? 7,
+            memberCount: membersStore.count, reflectionCount: 11)
+        let archived = [
+            GroupSummary(id: Self.soulRestId, name: "Soul Rest", challengeStatus: .completed,
+                         planChallengeId: Seed.james.id, planTitle: Seed.james.title,
+                         planImagePath: nil, dayCount: 7, memberCount: 5, reflectionCount: 97),
+            GroupSummary(id: Self.lentId, name: "Lent with Roomies", challengeStatus: .abandoned,
+                         planChallengeId: Seed.anchored.id, planTitle: Seed.anchored.title,
+                         planImagePath: nil, dayCount: 7, memberCount: 3, reflectionCount: 12)
+        ]
+        // The current group leads either way: if it's still going it wins
+        // outright, and if it's finished it's the most recently active.
+        return [current] + archived
+    }
     func members(groupId: UUID) async throws -> [GroupMember] { try await tick(); return membersStore }
     func users(ids: [UUID]) async throws -> [DwellUser] {
         try await tick(); return Seed.allUsers.filter { ids.contains($0.id) }
@@ -557,7 +601,8 @@ final class MockDwellAPI: DwellAPI {
         try await tick()
         guard let me else { throw DwellError.notAuthenticated }
         return insightsStore.filter { insight in
-            (type == nil || insight.type == type)
+            insight.groupId == groupId
+            && (type == nil || insight.type == type)
             && (insight.targetUserId == nil || insight.targetUserId == me.id)
         }
     }

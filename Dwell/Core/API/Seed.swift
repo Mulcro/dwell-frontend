@@ -24,7 +24,12 @@ enum Seed {
         sourceType: .youversionPlan,
         dayCount: 7,
         youversionPlanId: "mock-anchored-hope-7",
-        youversionDeepLink: "https://www.bible.com/reading-plans/mock-anchored-hope-7"
+        youversionDeepLink: "https://www.bible.com/reading-plans/mock-anchored-hope-7",
+        // The detail-screen columns (02b), so mock mode exercises the full
+        // layout.
+        planDescription: "Seven days of holding on when life pulls hard. For groups walking through a heavy season together.",
+        keyVerse: "We have this hope as an anchor for the soul, firm and secure.",
+        keyVerseRef: "Hebrews 6:19"
     )
 
     /// A second entry so the plan picker has a real choice to make.
@@ -34,19 +39,32 @@ enum Seed {
         sourceType: .youversionPlan,
         dayCount: 7,
         youversionPlanId: "mock-psalms-7",
-        youversionDeepLink: nil
+        youversionDeepLink: nil,
+        planDescription: "Seven psalms for building the kind of faith that bends without breaking. Honest prayers for hard seasons.",
+        keyVerse: "Why, my soul, are you downcast? Put your hope in God.",
+        keyVerseRef: "Psalm 42:11"
     )
+
+    static let jamesDays: [PlanDay] = [
+        PlanDay(planChallengeId: jamesPlanId, dayIndex: 1, passageRef: "PSA.1", title: "Rooted"),
+        PlanDay(planChallengeId: jamesPlanId, dayIndex: 2, passageRef: "PSA.13", title: "How long, Lord?"),
+        PlanDay(planChallengeId: jamesPlanId, dayIndex: 3, passageRef: "PSA.27", title: "Whom shall I fear?"),
+        PlanDay(planChallengeId: jamesPlanId, dayIndex: 4, passageRef: "PSA.42", title: "Why so downcast?"),
+        PlanDay(planChallengeId: jamesPlanId, dayIndex: 5, passageRef: "PSA.46", title: "Be still"),
+        PlanDay(planChallengeId: jamesPlanId, dayIndex: 6, passageRef: "PSA.73", title: "When my feet almost slipped"),
+        PlanDay(planChallengeId: jamesPlanId, dayIndex: 7, passageRef: "PSA.139", title: "Searched and known")
+    ]
 
     static var plans: [PlanChallenge] { [anchored, james] }
 
     static let anchoredDays: [PlanDay] = [
-        PlanDay(planChallengeId: planId, dayIndex: 1, passageRef: "HEB.6.19"),
-        PlanDay(planChallengeId: planId, dayIndex: 2, passageRef: "ISA.40.31"),
-        PlanDay(planChallengeId: planId, dayIndex: 3, passageRef: "ROM.5.3-5"),
-        PlanDay(planChallengeId: planId, dayIndex: 4, passageRef: "LAM.3.22-23"),
-        PlanDay(planChallengeId: planId, dayIndex: 5, passageRef: "ROM.8.28"),
-        PlanDay(planChallengeId: planId, dayIndex: 6, passageRef: "1PE.3.15"),
-        PlanDay(planChallengeId: planId, dayIndex: 7, passageRef: "REV.21.4-5")
+        PlanDay(planChallengeId: planId, dayIndex: 1, passageRef: "HEB.6.19", title: "An anchor for the soul"),
+        PlanDay(planChallengeId: planId, dayIndex: 2, passageRef: "ISA.40.31", title: "Hope renews strength"),
+        PlanDay(planChallengeId: planId, dayIndex: 3, passageRef: "ROM.5.3-5", title: "Suffering builds hope"),
+        PlanDay(planChallengeId: planId, dayIndex: 4, passageRef: "LAM.3.22-23", title: "Mercies new every morning"),
+        PlanDay(planChallengeId: planId, dayIndex: 5, passageRef: "ROM.8.28", title: "God works for good"),
+        PlanDay(planChallengeId: planId, dayIndex: 6, passageRef: "1PE.3.15", title: "A reason for hope"),
+        PlanDay(planChallengeId: planId, dayIndex: 7, passageRef: "REV.21.4-5", title: "All things new")
     ]
 
     /// Theme line per day, used as the passage subtitle on Today.

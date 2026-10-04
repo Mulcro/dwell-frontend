@@ -23,7 +23,10 @@ struct AppShell: View {
                         HomeView()
                     }
                 case .reading:  ReadingView()
-                case .memories: MemoriesView()
+                case .memories:
+                    MemoriesView(onKeepReflecting: {
+                        withAnimation(.easeInOut(duration: 0.18)) { tab = .home }
+                    })
                 case .profile:  ProfileView()
                 }
             }

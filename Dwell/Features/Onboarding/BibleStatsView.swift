@@ -4,7 +4,10 @@ import SwiftUI
 /// This is the pitch's central claim, so it gets a real chart rather than a
 /// screenshot.
 struct BibleStatsView: View {
-    var onBack: () -> Void = {}
+    /// For a signed-out walk this returns to the sign-up form; for a
+    /// signed-in user the flow passes a sign-out-to-login action instead.
+    /// nil hides the arrow.
+    var onBack: (() -> Void)?
     var onContinue: () -> Void = {}
     @Environment(\.dwell) private var t
 

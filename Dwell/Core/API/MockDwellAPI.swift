@@ -590,7 +590,13 @@ final class MockDwellAPI: DwellAPI {
     }
 
     func getPlanDays(planId: UUID) async throws -> [PlanDay] {
-        try await tick(); return Seed.anchoredDays.filter { $0.planChallengeId == planId }
+        try await tick()
+        return (Seed.anchoredDays + Seed.jamesDays).filter { $0.planChallengeId == planId }
+    }
+
+    func debugDay(groupId: UUID, action: String) async throws -> Int {
+        try await tick()
+        throw DwellError.notImplemented("Day control talks to the live backend; the mock's days are fixed per scenario.")
     }
 
     func passage(ref: String) async throws -> Passage {

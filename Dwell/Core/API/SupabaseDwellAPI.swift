@@ -324,6 +324,15 @@ final class SupabaseDwellAPI: DwellAPI {
         try await invoke("get-passage", body: ["ref": .string(ref)])
     }
 
+    func debugDay(groupId: UUID, action: String) async throws -> Int {
+        struct Response: Decodable { let day_index: Int }
+        let response: Response = try await invoke("debug-day", body: [
+            "group_id": .string(groupId.uuidString.lowercased()),
+            "action": .string(action)
+        ])
+        return response.day_index
+    }
+
     private func invoke<T: Decodable>(_ name: String, body: [String: AnyJSON]) async throws -> T {
         do {
             return try await client.functions.invoke(

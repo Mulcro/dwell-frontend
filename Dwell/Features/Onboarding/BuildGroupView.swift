@@ -11,6 +11,8 @@ struct BuildGroupView: View {
     @State private var plans: Loadable<[PlanChallenge]> = .idle
     @State private var selected: PlanChallenge?
     @State private var search = ""
+    /// The plan whose detail screen (Figma 02b) is open.
+    @State private var detailPlan: PlanChallenge?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -70,6 +72,15 @@ struct BuildGroupView: View {
         }
         .dwellThemed()
         .task { await load() }
+        .fullScreenCover(item: $detailPlan) { plan in
+            PlanDetailView(plan: plan,
+                           onClose: { detailPlan = nil },
+                           onStart: {
+                               Haptics.select()
+                               selected = $0
+                               detailPlan = nil
+                           })
+        }
     }
 
     private var searchField: some View {
@@ -77,7 +88,7 @@ struct BuildGroupView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 14))
                 .foregroundStyle(t.textSecondary)
-            TextField("Search YouVersion Plans", text: $search)
+            TextField("Search Plans", text: $search)
                 .font(.dwellBody)
                 .textFieldStyle(.plain)
                 .foregroundStyle(t.textPrimary)
@@ -88,45 +99,81 @@ struct BuildGroupView: View {
         .clipShape(Capsule())
     }
 
+    /// Image on top, title in the middle, Select and Details below.
+    /// Tapping the card selects too; Details is the only way into the
+    /// detail screen, so browsing never changes the choice by accident.
+    /// Image on top, title in the middle, Select and Details below.
+    /// Tapping the card selects too; Details is the only way into the
+    /// detail screen, so browsing never changes the choice by accident.
     private func planCard(_ plan: PlanChallenge) -> some View {
         let isSelected = selected?.id == plan.id
-        return Button {
-            Haptics.select()
-            selected = plan
-        } label: {
-            HStack(alignment: .center, spacing: Space.lg) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("\(plan.dayCount) Days")
-                        .font(.dwellCaptionMd)
-                        .foregroundStyle(t.textSecondary)
-                    Text(plan.title)
-                        .font(.dwellBodyMd)
-                        .foregroundStyle(t.textPrimary)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: Space.sm)
-                Text(isSelected ? "Selected" : "Start")
+        return VStack(spacing: 0) {
+            PlanCover(title: plan.title,
+                      imageURL: plan.imagePath.flatMap { session.api.planImageURL(path: $0) })
+                .frame(height: 120)
+                .frame(maxWidth: .infinity)
+                .clipped()
+
+            VStack(spacing: Space.sm) {
+                Text("\(plan.dayCount) Days")
                     .font(.dwellCaptionMd)
-                    .foregroundStyle(isSelected ? t.onInk : t.textPrimary)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 10)
-                    .background(isSelected ? t.ink : .clear)
-                    .clipShape(Capsule())
-                    .overlay(
-                        Capsule().strokeBorder(isSelected ? .clear : t.borderStrong, lineWidth: 1)
-                    )
+                    .foregroundStyle(t.textSecondary)
+
+                Text(plan.title)
+                    .font(.dwellBodyMd)
+                    .foregroundStyle(t.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: Space.xl) {
+                    Button {
+                        Haptics.select()
+                        selected = plan
+                    } label: {
+                        Text(isSelected ? "Selected" : "Select")
+                            .font(.dwellCaptionMd)
+                            .foregroundStyle(isSelected ? t.onInk : t.textPrimary)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 10)
+                            .background(isSelected ? t.ink : .clear)
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule().strokeBorder(isSelected ? .clear : t.borderStrong, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(PressScale())
+
+                    Button {
+                        Haptics.tap()
+                        detailPlan = plan
+                    } label: {
+                        Text("Details")
+                            .font(.dwellCaptionMd)
+                            .foregroundStyle(t.textPrimary)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 10)
+                            .overlay(
+                                Capsule().strokeBorder(t.borderStrong, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(PressScale())
+                }
+                .padding(.top, Space.sm)
             }
             .padding(Space.lg)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(t.surface)
-            .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
-                    .strokeBorder(isSelected ? t.ink : t.border, lineWidth: 1)
-            )
+            .frame(maxWidth: .infinity)
         }
-        .buttonStyle(PressScale())
+        .background(t.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                .strokeBorder(isSelected ? t.ink : t.border, lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+        .onTapGesture {
+            Haptics.select()
+            selected = plan
+        }
     }
 
     private func filtered(_ list: [PlanChallenge]) -> [PlanChallenge] {
@@ -140,6 +187,11 @@ struct BuildGroupView: View {
             let list = try await session.api.listPlans()
             plans = .loaded(list)
             selected = selected ?? list.first
+            // DWELL_PLAN_DETAIL=1 opens the first plan's detail straight
+            // away, for screenshots — same idea as DWELL_REFLECT on Home.
+            if ProcessInfo.processInfo.environment["DWELL_PLAN_DETAIL"] == "1" {
+                detailPlan = list.first
+            }
         } catch {
             plans = .failed(error.localizedDescription)
         }

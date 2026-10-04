@@ -41,6 +41,14 @@ struct PlanChallenge: Identifiable, Codable, Hashable {
     /// Object key in the **public** `plan-images` bucket — a key, not a URL,
     /// so the same row works against local and hosted projects.
     var imagePath: String?
+    /// The Figma's plan detail (02b) wants a description, a key verse and
+    /// titled days. These three are capability probes: the columns don't
+    /// exist yet, so they decode as nil and the detail screen renders only
+    /// the sections it has data for — no client release needed when they
+    /// land. Raised in Notion.
+    var planDescription: String?
+    var keyVerse: String?
+    var keyVerseRef: String?
 
     enum CodingKeys: String, CodingKey {
         case id, title
@@ -49,6 +57,9 @@ struct PlanChallenge: Identifiable, Codable, Hashable {
         case youversionPlanId = "youversion_plan_id"
         case youversionDeepLink = "youversion_deep_link"
         case imagePath = "image_path"
+        case planDescription = "description"
+        case keyVerse = "key_verse"
+        case keyVerseRef = "key_verse_ref"
     }
 }
 
@@ -56,6 +67,9 @@ struct PlanDay: Codable, Hashable, Identifiable {
     var planChallengeId: UUID
     var dayIndex: Int
     var passageRef: String
+    /// The day's theme line ("Stop", "Remain in the vine"). Same capability
+    /// probe as the plan columns above: nil until the backend adds it.
+    var title: String?
 
     var id: String { "\(planChallengeId)-\(dayIndex)" }
 
@@ -63,6 +77,7 @@ struct PlanDay: Codable, Hashable, Identifiable {
         case planChallengeId = "plan_challenge_id"
         case dayIndex = "day_index"
         case passageRef = "passage_ref"
+        case title
     }
 }
 

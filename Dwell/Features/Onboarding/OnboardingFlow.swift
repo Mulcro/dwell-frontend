@@ -10,6 +10,7 @@ struct OnboardingFlow: View {
         case signUp
         case youVersion
         case stats
+        case howItWorks
         case startOrJoin
         case buildGroup
         case frequency(name: String, plan: PlanChallenge)
@@ -18,7 +19,12 @@ struct OnboardingFlow: View {
         case notifications
     }
 
-    @State private var step: Step = OnboardingFlow.initialStep
+    /// Backed by the session so a router rebuild mid-flow resumes here
+    /// rather than restarting; see `SessionStore.onboardingStep`.
+    private var step: Step {
+        get { session.onboardingStep }
+        nonmutating set { session.onboardingStep = newValue }
+    }
 
     /// DWELL_STEP=<name> opens straight onto a step, for screenshots.
     static var initialStep: Step {
@@ -26,6 +32,7 @@ struct OnboardingFlow: View {
         case "signUp":       return .signUp
         case "youVersion":   return .youVersion
         case "stats":        return .stats
+        case "howItWorks":   return .howItWorks
         case "startOrJoin":  return .startOrJoin
         case "buildGroup":   return .buildGroup
         case "invite":       return .invite
@@ -36,9 +43,9 @@ struct OnboardingFlow: View {
     }
     /// Guards the one-time entry correction below.
     @State private var resolvedEntry = false
-    /// True when the flow opened straight onto `.startOrJoin` because the user
-    /// was already signed in — there is then no earlier step to go back to.
-    @State private var enteredAtStartOrJoin = false
+    /// Which page the explainer opens on: 0 going forward from Stats,
+    /// the last page when Back from Start-or-Join re-enters it.
+    @State private var explainerStart = 0
     @State private var showLogIn = false
     @State private var creating = false
     @State private var error: String?
@@ -52,10 +59,16 @@ struct OnboardingFlow: View {
             .task {
                 guard !resolvedEntry else { return }
                 resolvedEntry = true
-                guard ProcessInfo.processInfo.environment["DWELL_STEP"] == nil,
-                      session.isSignedIn, step == .welcome else { return }
-                enteredAtStartOrJoin = true
-                step = .startOrJoin
+                if ProcessInfo.processInfo.environment["DWELL_STEP"] != nil {
+                    step = OnboardingFlow.initialStep
+                    return
+                }
+                // A user arriving signed in at the very start skips the
+                // account screens but keeps the walk: stats, the explainer,
+                // then Start-or-Join, with Back working throughout. A rebuild
+                // mid-flow finds the step already moved and leaves it alone.
+                guard session.isSignedIn, step == .welcome else { return }
+                step = .stats
             }
             .sheet(isPresented: $showLogIn) {
                 LogInView(
@@ -101,11 +114,16 @@ struct OnboardingFlow: View {
                                  onSignedIn: { step = .stats })
 
         case .stats:
-            BibleStatsView(onBack: { step = .signUp },
-                           onContinue: { step = .startOrJoin })
+            BibleStatsView(onBack: session.isSignedIn ? { backToLogIn() } : { step = .signUp },
+                           onContinue: { explainerStart = 0; step = .howItWorks })
+
+        case .howItWorks:
+            HowDwellWorksView(startPage: explainerStart,
+                              onBack: { step = .stats },
+                              onDone: { step = .startOrJoin })
 
         case .startOrJoin:
-            StartOrJoinView(onBack: enteredAtStartOrJoin ? nil : { step = .stats },
+            StartOrJoinView(onBack: { explainerStart = 3; step = .howItWorks },
                             onCreate: { step = .buildGroup },
                             onJoined: {
                                 // Order matters: hold the flow open *before*
@@ -141,6 +159,20 @@ struct OnboardingFlow: View {
 
         case .notifications:
             EnableNotificationsView(onDone: { session.finishOnboarding() })
+        }
+    }
+
+    /// Stats is the first screen of a signed-in user's walk, so its Back
+    /// can't return to the sign-up form. It signs out and lands on Log In,
+    /// which is also the only way off the wrong account before a group
+    /// exists. Logging into an account that has a group routes straight
+    /// Home from there — the router sends a loaded group home on its own.
+    private func backToLogIn() {
+        Task {
+            try? await session.api.signOut()
+            session.finishOnboarding()
+            await session.bootstrap()
+            showLogIn = true
         }
     }
 

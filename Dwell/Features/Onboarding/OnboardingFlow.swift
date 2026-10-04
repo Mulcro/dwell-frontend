@@ -152,8 +152,15 @@ struct OnboardingFlow: View {
                                 // routes home and rebuilds this view with its
                                 // step reset. Then load, then advance.
                                 session.beginOnboardingTail()
-                                step = .notifications
-                                Task { await session.bootstrap() }
+                                if session.startingNewPlan {
+                                    Task {
+                                        await session.bootstrap()
+                                        session.finishOnboarding()
+                                    }
+                                } else {
+                                    step = .notifications
+                                    Task { await session.bootstrap() }
+                                }
                             })
 
         case .buildGroup:
@@ -176,7 +183,10 @@ struct OnboardingFlow: View {
                               onNext: { step = .share })
 
         case .share:
-            ShareInviteView(onHome: { step = .notifications })
+            ShareInviteView(onHome: {
+                if session.startingNewPlan { session.finishOnboarding() }
+                else { step = .notifications }
+            })
 
         case .notifications:
             EnableNotificationsView(onDone: { session.finishOnboarding() })

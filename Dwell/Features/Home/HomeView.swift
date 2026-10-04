@@ -348,6 +348,7 @@ struct HomeView: View {
     /// Opens What's Next: same crew, make a group, join with a code, and the
     /// archive.
     private func startNewPlan() {
+        session.startingNewPlan = true
         session.onboardingStep = .startOrJoin
         session.resetOnboarding()
     }

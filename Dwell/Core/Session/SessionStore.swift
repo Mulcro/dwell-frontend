@@ -179,7 +179,13 @@ final class SessionStore {
     func finishOnboarding() {
         onboardingActive = false
         onboardingStep = .welcome
+        startingNewPlan = false
     }
+
+    /// Set by "Start a new plan" on a finished group. Someone on their second
+    /// challenge has already answered the notifications question, so the
+    /// flow ends on Home instead of asking again.
+    var startingNewPlan = false
 
     /// Where the onboarding flow currently is. Lives here, not in the view:
     /// signing up flips the auth state, the router rebuilds OnboardingFlow,

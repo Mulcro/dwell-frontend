@@ -48,7 +48,6 @@ protocol DwellAPI {
                      frequency: Frequency,
                      customDays: [Int]?,
                      timezone: String,
-                     catchUpThresholdPct: Int?,
                      autoSkipAfterDays: Int?) async throws -> CreateGroupResponse
 
     /// POST /join-group. If this join brings membership to 2, flips the group

@@ -35,6 +35,7 @@ struct OnboardingFlow: View {
         case "howItWorks":   return .howItWorks
         case "startOrJoin":  return .startOrJoin
         case "buildGroup":   return .buildGroup
+        case "frequency":    return .frequency(name: "Sunday Crew", plan: Seed.anchored)
         case "invite":       return .invite
         case "share":        return .share
         case "notifications": return .notifications
@@ -163,11 +164,10 @@ struct OnboardingFlow: View {
         case let .frequency(name, plan):
             FrequencyThresholdView(
                 onBack: { step = .buildGroup },
-                onNext: { frequency, customDays, threshold, moveOn in
+                onNext: { frequency, customDays, moveOn in
                     Task { await create(name: name, plan: plan,
                                         frequency: frequency,
                                         customDays: customDays,
-                                        threshold: threshold,
                                         moveOn: moveOn) }
                 })
 
@@ -199,7 +199,7 @@ struct OnboardingFlow: View {
 
     private func create(name: String, plan: PlanChallenge,
                         frequency: Frequency, customDays: [Int]?,
-                        threshold: Int, moveOn: Int) async {
+                        moveOn: Int) async {
         guard !creating else { return }
         creating = true
         defer { creating = false }
@@ -210,7 +210,6 @@ struct OnboardingFlow: View {
                 frequency: frequency,
                 customDays: customDays,
                 timezone: TimeZone.current.identifier,
-                catchUpThresholdPct: threshold,
                 autoSkipAfterDays: moveOn)
             session.beginOnboardingTail()
             await session.bootstrap()

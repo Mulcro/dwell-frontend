@@ -356,12 +356,12 @@ final class MockDwellAPI: DwellAPI {
 
     func createGroup(name: String, planChallengeId: UUID,
                      frequency: Frequency, customDays: [Int]?, timezone: String,
-                     catchUpThresholdPct: Int?, autoSkipAfterDays: Int?) async throws -> CreateGroupResponse {
+                     autoSkipAfterDays: Int?) async throws -> CreateGroupResponse {
         try await tick()
         guard let me else { throw DwellError.notAuthenticated }
         let token = String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(6)).uppercased()
         let new = DwellGroup(id: UUID(), name: name, planChallengeId: planChallengeId,
-                        catchUpThresholdPct: catchUpThresholdPct ?? 50,
+                        catchUpThresholdPct: 50,
                         autoSkipAfterDays: autoSkipAfterDays ?? 3,
                         frequency: frequency, customDays: customDays, timezone: timezone,
                         challengeStatus: .forming, promptPending: false, inviteToken: token,

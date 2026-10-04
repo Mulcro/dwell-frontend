@@ -184,14 +184,13 @@ final class SupabaseDwellAPI: DwellAPI {
 
     func createGroup(name: String, planChallengeId: UUID,
                      frequency: Frequency, customDays: [Int]?, timezone: String,
-                     catchUpThresholdPct: Int?, autoSkipAfterDays: Int?) async throws -> CreateGroupResponse {
+                     autoSkipAfterDays: Int?) async throws -> CreateGroupResponse {
         var body: [String: AnyJSON] = [
             "name": .string(name),
             "plan_challenge_id": .string(planChallengeId.uuidString.lowercased()),
             "frequency": .string(frequency.rawValue),
             "timezone": .string(timezone)
         ]
-        if let catchUpThresholdPct { body["catch_up_threshold_pct"] = .integer(catchUpThresholdPct) }
         if let autoSkipAfterDays { body["auto_skip_after_days"] = .integer(autoSkipAfterDays) }
         // Required for `custom`, rejected with a 400 for anything else.
         if frequency == .custom {

@@ -168,3 +168,7 @@ Aligned to the Client API Contract (2026-09-24):
 [Client API Contract]: https://app.notion.com/p/3e5d36984c6e81faaecad797886ff45d
 [MVP Spec]: https://app.notion.com/p/3d1d36984c6e81c9bf88d4555ed223ce
 [Backend Design Doc]: https://app.notion.com/p/3ded36984c6e81c59f8bdaa7a1902589
+
+## License
+
+MIT — see [LICENSE](LICENSE).

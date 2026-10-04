@@ -123,7 +123,8 @@ struct OnboardingFlow: View {
                               onDone: { step = .startOrJoin })
 
         case .startOrJoin:
-            StartOrJoinView(onBack: {
+            StartOrJoinView(standalone: (session.group.value ?? nil) != nil,
+                            onBack: {
                                 // Decided at tap time, not body time, so the
                                 // answer is always current. With a group —
                                 // "Start a new plan" from a finished one —

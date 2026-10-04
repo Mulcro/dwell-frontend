@@ -2,6 +2,9 @@ import SwiftUI
 
 /// Figma: "Start or Join Group". The fork — create, or enter a code.
 struct StartOrJoinView: View {
+    /// True when reached from "Start a new plan" on a finished group: not a
+    /// step in a walk, so no progress bar — just the back arrow.
+    var standalone: Bool = false
     /// nil when this is where the flow began — a signed-in user with no
     /// group has no earlier step to go back to.
     var onBack: (() -> Void)?
@@ -20,7 +23,11 @@ struct StartOrJoinView: View {
             SkyBackground(height: 340, fadeFrom: 0.3)
 
             VStack(alignment: .leading, spacing: 0) {
-                OnboardingHeader(progress: 0.42, onBack: onBack)
+                if standalone, let onBack {
+                    OnboardingBackBar(onBack: onBack)
+                } else {
+                    OnboardingHeader(progress: 0.42, onBack: onBack)
+                }
 
                 Text("Start a group, or join one.")
                     .font(.dwellTitle)
@@ -77,6 +84,9 @@ struct StartOrJoinView: View {
         .padding(Space.lg)
         .frame(maxWidth: .infinity, minHeight: 204, maxHeight: 204, alignment: .bottomLeading)
         .background {
+            // scaledToFill overflows the card hugely, and clipShape only
+            // clips what's drawn, not what's tappable — the invisible
+            // overflow sat over the header and ate the Back button's taps.
             ZStack(alignment: .topTrailing) {
                 Image("SkyHero")
                     .resizable()
@@ -86,6 +96,7 @@ struct StartOrJoinView: View {
                     .padding(.top, Space.sm)
                     .padding(.trailing, Space.sm)
             }
+            .allowsHitTesting(false)
         }
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
         .overlay(

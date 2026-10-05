@@ -14,15 +14,19 @@ The backend, including the full AI pipeline, is
 ## What you see AI do in the app
 
 - **Eagle's reply** under each of your reflections, in your language (Feed).
-- **Translation**: reflections, replies and AI cards appear in each reader's
-  language, with "Translated from" and a way back to the original.
+- **Translation**: reflections, replies and the Group Pulse appear in each
+  reader's language and say "Translated from". Reflections and the Pulse also
+  offer "See original"; replies show the label only. Eagle's reply is shown in
+  the author's language (the backend stores its translations, but the app
+  doesn't display them yet).
 - **Group Pulse**: once a day unlocks, a headline about what the group noticed,
   and each member's stated intention (Home, Pulse).
 - **Weekly and end-of-challenge recaps**: the thread the group kept coming
   back to, and a line on what each person brought (Recap).
 - **Nudges** when you're falling behind, in-app.
-- **On-device transcription** of voice reflections with Apple Speech
-  (`Core/Speech/SpeechRecognizer.swift`), so audio never needs a server model.
+- **Transcription** of voice reflections with Apple Speech
+  (`Core/Speech/SpeechRecognizer.swift`): on-device wherever the language
+  supports it, otherwise Apple's speech service. No server-side speech model.
 - **Moderation** runs before anything you post reaches anyone else.
 
 The backend README has the full map of models and design choices:
@@ -90,7 +94,7 @@ Dwell/
   Features/
     Onboarding/   sign-in, create or join, plan picker, rhythm
     Home/         today's state: sealed, unlocked, finished, What's Next
-    Reading/      the day's passage from YouVersion
+    Reading/      the day's passage in YouVersion's SDK reader
     Reflect/      compose text, voice (with transcription) or photo
     Feed/         the unlocked day: reflections, Eagle, replies, reactions
     Pulse/        the Group Pulse card
@@ -159,17 +163,22 @@ the app to light rather than rendering an undesigned dark palette.
 
 ## Content
 
-The picker shows the three plans the design defines: **Be Still** (3 days),
-**Better Together** (7) and **Abide** (14), each with a description, key
-verse, titled days and cover art. Passage text comes from the YouVersion
-Platform (Berean Standard Bible) through the backend.
+Against the live backend, the picker shows the plans the backend lists: **Be
+Still** (3 days), **Better Together** (7) and **Abide** (14), each with a
+description, key verse, titled days and cover art. The offline mock seeds two
+older 7-day plans instead (When Life Gets Hard, The Psalms).
+
+The reading screen is YouVersion's own `BibleReaderView` from the YouVersion
+Platform Swift SDK (`Core/API/YouVersionReader.swift`), handed each day's
+reference.
 
 ## Contract conformance
 
 Aligned to the Client API Contract (2026-09-24):
 
-- `frequency` (`daily` / `weekdays` / `four_per_week` / `three_per_week` /
-  `custom` with chosen weekdays) is a live control.
+- `frequency`: the app offers `daily`, `four_per_week` and `custom` (chosen
+  weekdays). `weekdays` and `three_per_week` also exist on the wire, so a group
+  created elsewhere still decodes, but aren't offered in the picker.
 - `create-group` sends `timezone`; omitting it silently gives the group UTC
   and breaks weekday/MWF day math.
 - The user's own row is PATCHed on first sight of the `'UTC'`/`'en'`

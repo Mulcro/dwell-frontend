@@ -362,6 +362,11 @@ final class MockDwellAPI: DwellAPI {
         load(.signedOut)
     }
 
+    func clearPushToken() async throws {
+        try await tick()
+        me?.pushToken = nil
+    }
+
     func signOut() async throws {
         try await tick()
         load(.signedOut)

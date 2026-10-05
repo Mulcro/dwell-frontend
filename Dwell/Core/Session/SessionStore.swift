@@ -357,13 +357,25 @@ final class SessionStore {
     }
 
     /// PATCHes the token onto your own row, skipping the request when it's
-    /// already there. A failure is retried on the next launch's registration.
+    /// already there. A failure is retried on the next registration.
     private func uploadPushToken() async {
         guard let token = devicePushToken, let me, me.pushToken != token else { return }
-        if let updated = try? await api.updateProfile(name: nil, timezone: nil,
-                                                      preferredLanguage: nil, pushToken: token) {
-            self.me = updated
-        }
+        let owner = me.id
+        guard let updated = try? await api.updateProfile(name: nil, timezone: nil,
+                                                         preferredLanguage: nil, pushToken: token)
+        else { return }
+        // An account switch mid-request would otherwise put the previous
+        // account's profile back on screen.
+        if self.me?.id == owner { self.me = updated }
+    }
+
+    /// Releases this phone's push token from the account first, so its pushes
+    /// stop reaching whoever uses the phone next. The token stays in memory
+    /// for the next account to claim. Best effort: signing out never waits
+    /// on it succeeding.
+    func signOut() async {
+        try? await api.clearPushToken()
+        try? await api.signOut()
     }
 
     // MARK: - Same crew, new plan
@@ -553,7 +565,6 @@ final class SessionStore {
             if let g { try await loadGroupDetail(g) }
             await loadContinuations()
             await uploadPushToken()
-            await PushRegistration.registerIfAuthorized()
         } catch DwellError.notAuthenticated {
             signedOut()
         } catch {

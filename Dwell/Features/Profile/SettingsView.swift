@@ -317,7 +317,7 @@ struct SettingsView: View {
             card {
                 Button {
                     Task {
-                        try? await session.api.signOut()
+                        await session.signOut()
                         session.finishOnboarding()
                         await session.bootstrap()
                     }

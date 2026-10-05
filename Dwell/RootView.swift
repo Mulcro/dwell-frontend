@@ -27,6 +27,10 @@ struct RootView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, !showSplash { Task { await session.reload() } }
+            // Every return to the app, not only after a successful load: covers
+            // allowing notifications in iOS Settings and coming back, and a
+            // launch whose group load failed.
+            if phase == .active { Task { await PushRegistration.registerIfAuthorized() } }
         }
         // Midnight, a timezone change, or the clock being set. Returning to
         // the foreground already reloads, but an app left open across midnight
@@ -71,6 +75,7 @@ struct RootView: View {
 
         let started = Date()
         await session.bootstrap()
+        await PushRegistration.registerIfAuthorized()
 
         let minimumOnScreen: TimeInterval = 1.1
         let elapsed = Date().timeIntervalSince(started)

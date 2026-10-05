@@ -184,7 +184,8 @@ final class SupabaseDwellAPI: DwellAPI {
 
     func createGroup(name: String, planChallengeId: UUID,
                      frequency: Frequency, customDays: [Int]?, timezone: String,
-                     autoSkipAfterDays: Int?) async throws -> CreateGroupResponse {
+                     autoSkipAfterDays: Int?,
+                     continuesGroupId: UUID?) async throws -> CreateGroupResponse {
         var body: [String: AnyJSON] = [
             "name": .string(name),
             "plan_challenge_id": .string(planChallengeId.uuidString.lowercased()),
@@ -192,6 +193,9 @@ final class SupabaseDwellAPI: DwellAPI {
             "timezone": .string(timezone)
         ]
         if let autoSkipAfterDays { body["auto_skip_after_days"] = .integer(autoSkipAfterDays) }
+        if let continuesGroupId {
+            body["continues_group_id"] = .string(continuesGroupId.uuidString.lowercased())
+        }
         // Required for `custom`, rejected with a 400 for anything else.
         if frequency == .custom {
             body["custom_days"] = .array((customDays ?? []).map { .integer($0) })
@@ -201,6 +205,14 @@ final class SupabaseDwellAPI: DwellAPI {
 
     func joinGroup(inviteToken: String) async throws -> JoinGroupResponse {
         try await invoke("join-group", body: ["invite_token": .string(inviteToken)])
+    }
+
+    func joinGroup(groupId: UUID) async throws -> JoinGroupResponse {
+        try await invoke("join-group", body: ["group_id": .string(groupId.uuidString.lowercased())])
+    }
+
+    func myContinuations() async throws -> [Continuation] {
+        try await client.rpc("my_continuations").execute().value
     }
 
     /// Public RPC — `apikey` only, no session. Returns `[]` for an unknown

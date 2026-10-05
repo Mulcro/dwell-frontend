@@ -39,6 +39,7 @@ final class MockDwellAPI: DwellAPI {
     private var commentsStore: [Comment] = []
     private var reactionsStore: [Reaction] = []
     private var insightsStore: [AIInsight] = []
+    private var continuationsStore: [Continuation] = []
     private var leaderboardStore: [LeaderboardEntry] = []
     private(set) var inactivityPromptPending = false
 
@@ -60,8 +61,20 @@ final class MockDwellAPI: DwellAPI {
         membersStore = []; days = []; reflectionsStore = []
         commentsStore = []; reactionsStore = []; insightsStore = []
         leaderboardStore = []; inactivityPromptPending = false
+        continuationsStore = []
 
         guard scenario != .signedOut, scenario != .noGroup else { return }
+
+        // A finished challenge whose crew-mate has started the next one, so
+        // the invitation card shows in these scenarios' screenshots.
+        if [.completed, .abandoned].contains(scenario) {
+            continuationsStore = [Continuation(
+                groupId: Self.crewNextId, name: "Sunday Crew",
+                continuesGroupId: Seed.groupId,
+                planTitle: Seed.james.title, planImagePath: Seed.james.imagePath,
+                dayCount: Seed.james.dayCount, memberCount: 1,
+                createdBy: Seed.priya.id, createdByName: Seed.priya.name)]
+        }
 
         let status: ChallengeStatus
         switch scenario {
@@ -356,7 +369,8 @@ final class MockDwellAPI: DwellAPI {
 
     func createGroup(name: String, planChallengeId: UUID,
                      frequency: Frequency, customDays: [Int]?, timezone: String,
-                     autoSkipAfterDays: Int?) async throws -> CreateGroupResponse {
+                     autoSkipAfterDays: Int?,
+                     continuesGroupId: UUID?) async throws -> CreateGroupResponse {
         try await tick()
         guard let me else { throw DwellError.notAuthenticated }
         let token = String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(6)).uppercased()
@@ -370,6 +384,40 @@ final class MockDwellAPI: DwellAPI {
         membersStore = [GroupMember(groupId: new.id, userId: me.id, joinedAt: .now)]
         days = []; reflectionsStore = []
         return CreateGroupResponse(groupId: new.id, inviteToken: token)
+    }
+
+    static let crewNextId = UUID(uuidString: "00000000-0000-0000-0000-0000000000B9")!
+
+    func myContinuations() async throws -> [Continuation] {
+        try await tick(); return continuationsStore
+    }
+
+    /// Accepting moves you into the crew-mate's new group as its second
+    /// member, which starts it, the same as join-group does by code.
+    func joinGroup(groupId: UUID) async throws -> JoinGroupResponse {
+        try await tick()
+        guard let me else { throw DwellError.notAuthenticated }
+        guard let invite = continuationsStore.first(where: { $0.groupId == groupId }),
+              let previous = group else {
+            throw DwellError.notFound("That invite")
+        }
+        if let current = group, !current.challengeStatus.isEnded {
+            throw DwellError.conflict("Your group's challenge is still going. Finish it or leave the group first.")
+        }
+        let next = DwellGroup(id: invite.groupId, name: invite.name, planChallengeId: Seed.james.id,
+                          catchUpThresholdPct: 50, autoSkipAfterDays: previous.autoSkipAfterDays,
+                          frequency: previous.frequency, customDays: previous.customDays,
+                          timezone: previous.timezone, challengeStatus: .active,
+                          promptPending: false, inviteToken: "CRW2NX",
+                          createdBy: invite.createdBy ?? Seed.priya.id, createdAt: .now)
+        group = next
+        membersStore = [GroupMember(groupId: next.id, userId: invite.createdBy ?? Seed.priya.id, joinedAt: .now),
+                        GroupMember(groupId: next.id, userId: me.id, joinedAt: .now)]
+        days = []; reflectionsStore = []; commentsStore = []; reactionsStore = []
+        leaderboardStore = []
+        openDay(index: 1)
+        continuationsStore.removeAll { $0.groupId == groupId }
+        return JoinGroupResponse(groupId: next.id, challengeStatus: .active)
     }
 
     func joinGroup(inviteToken: String) async throws -> JoinGroupResponse {

@@ -47,6 +47,9 @@ struct OnboardingFlow: View {
     /// The finished group's name, carried into Build Group by "Same crew,
     /// new plan". Empty for an ordinary create.
     @State private var newGroupName = ""
+    /// The finished group "Same crew, new plan" continues, so its members get
+    /// the invitation (KAN-50). Nil for an ordinary create.
+    @State private var continuesGroupId: UUID?
     /// Which page the explainer opens on: 0 going forward from Stats,
     /// the last page when Back from Start-or-Join re-enters it.
     @State private var explainerStart = 0
@@ -141,9 +144,14 @@ struct OnboardingFlow: View {
                                     step = .howItWorks
                                 }
                             },
-                            onCreate: { newGroupName = ""; step = .buildGroup },
+                            onCreate: {
+                                newGroupName = ""
+                                continuesGroupId = nil
+                                step = .buildGroup
+                            },
                             onSameCrew: {
                                 newGroupName = session.group.value??.name ?? ""
+                                continuesGroupId = session.group.value??.id
                                 step = .buildGroup
                             },
                             onJoined: {
@@ -220,7 +228,8 @@ struct OnboardingFlow: View {
                 frequency: frequency,
                 customDays: customDays,
                 timezone: TimeZone.current.identifier,
-                autoSkipAfterDays: moveOn)
+                autoSkipAfterDays: moveOn,
+                continuesGroupId: continuesGroupId)
             session.beginOnboardingTail()
             await session.bootstrap()
             Haptics.posted()

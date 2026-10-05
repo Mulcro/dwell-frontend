@@ -94,6 +94,9 @@ final class SessionStore {
     var inactivityPrompt: AIInsight?
     /// The companion's synthesis of the day, written once the day unlocks.
     var groupPulse: AIInsight?
+    /// "Same crew, new plan" invitations (KAN-50) the user hasn't joined or
+    /// turned down, newest first.
+    var continuations: [Continuation] = []
     /// The challenge-end card: end_summary, or fallback_recap when the
     /// challenge closed with little material. Latest row wins.
     var endRecap: AIInsight?
@@ -290,6 +293,48 @@ final class SessionStore {
 
     var isSignedIn: Bool { me != nil }
 
+    // MARK: - Same crew, new plan
+
+    /// Turned-down invitations, per account on this device. The backend keeps
+    /// no record of declining, so it doesn't sync.
+    private var dismissedKey: String? {
+        me.map { "continuations.dismissed.\($0.id.uuidString)" }
+    }
+
+    private var dismissedContinuations: Set<String> {
+        guard let key = dismissedKey else { return [] }
+        return Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
+    }
+
+    private func loadContinuations() async {
+        // A failed fetch keeps what's on screen rather than clearing it, so a
+        // network blip on refresh can't make invitations vanish.
+        guard let all = try? await api.myContinuations() else { return }
+        let dismissed = dismissedContinuations
+        continuations = all.filter { !dismissed.contains($0.groupId.uuidString) }
+    }
+
+    func dismissContinuation(_ invite: Continuation) {
+        guard let key = dismissedKey else { return }
+        UserDefaults.standard.set(Array(dismissedContinuations.union([invite.groupId.uuidString])),
+                                  forKey: key)
+        continuations.removeAll { $0.groupId == invite.groupId }
+    }
+
+    /// Joins the crew-mate's new group. my_groups then puts it first, so the
+    /// reload lands Home on it. Throws the backend's 409 message as is.
+    func acceptContinuation(_ invite: Continuation) async throws {
+        _ = try await api.joinGroup(groupId: invite.groupId)
+        Haptics.posted()
+        await reload()
+        // reload() keeps the old group when it fails, so only report success
+        // once the new group is the one loaded. Joining again is a no-op on
+        // the backend, so tapping Join again just retries the load.
+        guard group.value??.id == invite.groupId else {
+            throw DwellError.network("You're in, but the new group didn't load. Tap Join again to retry.")
+        }
+    }
+
     func name(for userId: UUID) -> String {
         if userId == me?.id { return "You" }
         return memberProfiles[userId]?.name.split(separator: " ").first.map(String.init)
@@ -433,6 +478,7 @@ final class SessionStore {
             let g = try await api.myGroup()
             group = .loaded(g)
             if let g { try await loadGroupDetail(g) }
+            await loadContinuations()
         } catch DwellError.notAuthenticated {
             signedOut()
         } catch {
@@ -511,6 +557,7 @@ final class SessionStore {
         groupPulse = nil
         endRecap = nil
         weeklyRecap = nil
+        continuations = []
         inactivityPromptPending = false
         onboardingActive = false
         realtime?.cancel()
@@ -533,6 +580,7 @@ final class SessionStore {
             let g = try await api.myGroup()
             group = .loaded(g)
             if let g { try await loadGroupDetail(g) } else { clearGroupDetail() }
+            await loadContinuations()
         } catch DwellError.notAuthenticated {
             signedOut()
         } catch {

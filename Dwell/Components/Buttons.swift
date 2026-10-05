@@ -47,6 +47,9 @@ struct PrimaryButton: View {
 struct SecondaryButton: View {
     let title: String
     var bordered: Bool = false
+    /// Matches PrimaryButton's compact height when the two sit side by side
+    /// inside a card.
+    var compact: Bool = false
     var action: () -> Void = {}
     @Environment(\.dwell) private var t
 
@@ -58,7 +61,7 @@ struct SecondaryButton: View {
             Text(title)
                 .font(.dwellButton)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 18)
+                .padding(.vertical, compact ? 12 : 18)
                 .foregroundStyle(t.textPrimary)
                 .background(bordered ? t.surface : .clear)
                 .clipShape(Capsule())

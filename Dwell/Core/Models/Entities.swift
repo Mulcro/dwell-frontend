@@ -146,6 +146,35 @@ struct GroupSummary: Codable, Hashable, Identifiable {
     }
 }
 
+/// One row of `rpc/my_continuations` (KAN-50): a "same crew, new plan" group
+/// that continues one the caller was in, which they haven't joined yet.
+/// Carries no invite code; accepting is `join-group` by `groupId`.
+struct Continuation: Codable, Hashable, Identifiable {
+    var groupId: UUID
+    var name: String
+    var continuesGroupId: UUID
+    var planTitle: String
+    var planImagePath: String?
+    var dayCount: Int
+    var memberCount: Int
+    var createdBy: UUID?
+    var createdByName: String?
+
+    var id: UUID { groupId }
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case groupId = "group_id"
+        case continuesGroupId = "continues_group_id"
+        case planTitle = "plan_title"
+        case planImagePath = "plan_image_path"
+        case dayCount = "day_count"
+        case memberCount = "member_count"
+        case createdBy = "created_by"
+        case createdByName = "created_by_name"
+    }
+}
+
 struct GroupMember: Codable, Hashable, Identifiable {
     var groupId: UUID
     var userId: UUID

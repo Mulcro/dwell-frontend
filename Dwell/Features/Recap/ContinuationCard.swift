@@ -51,10 +51,10 @@ struct ContinuationCard: View {
 
             HStack(spacing: Space.md) {
                 PrimaryButton(title: joining ? "Joining…" : "Join",
-                              enabled: !joining, loading: joining, accent: true) {
+                              enabled: !joining, loading: joining, accent: true, compact: true) {
                     Task { await join() }
                 }
-                SecondaryButton(title: "Not this time") {
+                SecondaryButton(title: "Not this time", bordered: true, compact: true) {
                     withAnimation { session.dismissContinuation(invite) }
                 }
                 .disabled(joining)

@@ -105,10 +105,12 @@ struct StartOrJoinView: View {
                     .font(.dwellBodyMd)
                     .foregroundStyle(t.textPrimary)
 
-                ForEach(session.continuations) { invite in
+                ForEach(orderedContinuations) { invite in
                     // The flow is still open here, so close it once the
                     // session has moved onto the new group.
-                    ContinuationCard(invite: invite, onJoined: { session.finishOnboarding() })
+                    ContinuationCard(invite: invite,
+                                     sourceName: sourceName(for: invite),
+                                     onJoined: { session.finishOnboarding() })
                 }
 
                 sameCrewRow
@@ -135,6 +137,20 @@ struct StartOrJoinView: View {
         }
         .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.interactively)
+    }
+
+    /// This group's invitations first; any from other finished groups after.
+    private var orderedContinuations: [Continuation] {
+        let current = session.group.value??.id
+        return session.continuations.filter { $0.continuesGroupId == current }
+            + session.continuations.filter { $0.continuesGroupId != current }
+    }
+
+    /// Nil for this group's own crew; otherwise the archived group's name, so
+    /// the card says which crew it's from.
+    private func sourceName(for invite: Continuation) -> String? {
+        guard invite.continuesGroupId != session.group.value??.id else { return nil }
+        return archived.first { $0.id == invite.continuesGroupId }?.name ?? "another"
     }
 
     /// Not the comp's "Keep your rhythm, threshold and day windows": the

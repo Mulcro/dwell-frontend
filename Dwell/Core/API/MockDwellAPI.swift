@@ -414,6 +414,7 @@ final class MockDwellAPI: DwellAPI {
         membersStore = [GroupMember(groupId: next.id, userId: invite.createdBy ?? Seed.priya.id, joinedAt: .now),
                         GroupMember(groupId: next.id, userId: me.id, joinedAt: .now)]
         days = []; reflectionsStore = []; commentsStore = []; reactionsStore = []
+        leaderboardStore = []
         openDay(index: 1)
         continuationsStore.removeAll { $0.groupId == groupId }
         return JoinGroupResponse(groupId: next.id, challengeStatus: .active)

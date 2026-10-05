@@ -5,6 +5,9 @@ import SwiftUI
 /// What's Next.
 struct ContinuationCard: View {
     let invite: Continuation
+    /// The finished group the invitation comes from, when it isn't the one on
+    /// screen.
+    var sourceName: String? = nil
     /// Called after a successful join; the session has already reloaded onto
     /// the new group.
     var onJoined: () -> Void = {}
@@ -20,7 +23,7 @@ struct ContinuationCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.md) {
-            Text("\(starter) started a new plan with this crew")
+            Text("\(starter) started a new plan with \(sourceName.map { "your \($0) crew" } ?? "this crew")")
                 .font(.dwellBodyMd)
                 .foregroundStyle(t.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)

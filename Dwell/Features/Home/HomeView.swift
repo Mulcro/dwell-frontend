@@ -358,10 +358,12 @@ struct HomeView: View {
     }
 
     /// A crew-mate's next plan leads the finished state: joining it is the
-    /// most likely next move.
+    /// most likely next move. Only this group's: an invitation from another
+    /// finished crew would sit unlabelled under this one's recap. Those show
+    /// on What's Next, named.
     @ViewBuilder
     private var continuationCards: some View {
-        ForEach(session.continuations) { invite in
+        ForEach(session.continuations.filter { $0.continuesGroupId == session.group.value??.id }) { invite in
             ContinuationCard(invite: invite)
         }
     }

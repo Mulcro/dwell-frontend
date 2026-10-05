@@ -307,7 +307,9 @@ final class SessionStore {
     }
 
     private func loadContinuations() async {
-        let all = (try? await api.myContinuations()) ?? []
+        // A failed fetch keeps what's on screen rather than clearing it, so a
+        // network blip on refresh can't make invitations vanish.
+        guard let all = try? await api.myContinuations() else { return }
         let dismissed = dismissedContinuations
         continuations = all.filter { !dismissed.contains($0.groupId.uuidString) }
     }
@@ -325,6 +327,12 @@ final class SessionStore {
         _ = try await api.joinGroup(groupId: invite.groupId)
         Haptics.posted()
         await reload()
+        // reload() keeps the old group when it fails, so only report success
+        // once the new group is the one loaded. Joining again is a no-op on
+        // the backend, so tapping Join again just retries the load.
+        guard group.value??.id == invite.groupId else {
+            throw DwellError.network("You're in, but the new group didn't load. Tap Join again to retry.")
+        }
     }
 
     func name(for userId: UUID) -> String {

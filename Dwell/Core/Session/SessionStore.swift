@@ -166,11 +166,13 @@ final class SessionStore {
     /// The cron writes a nudge in the last hours of a member's window and the
     /// row stays, so one written before you posted kept showing after. A
     /// nudge only applies while it's addressed to you, about the day that's
-    /// open, in a challenge still running, and you haven't posted on that
+    /// open, in an active challenge, and you haven't posted on that
     /// day. Computed, so posting hides a banner already on screen.
     private func nudgeStillApplies(_ nudge: AIInsight) -> Bool {
         guard nudge.targetUserId == me?.id else { return false }
-        if let g = group.value ?? nil, g.challengeStatus.isEnded { return false }
+        // Active only: a paused challenge promises "nobody's being nudged",
+        // and a finished one has nothing left to nudge about.
+        if let g = group.value ?? nil, g.challengeStatus != .active { return false }
         guard let day = nudge.dayInstanceId ?? currentDay?.id,
               day == currentDay?.id else { return false }
         return !hasPosted(on: day)

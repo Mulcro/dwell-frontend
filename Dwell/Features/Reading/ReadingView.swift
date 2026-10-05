@@ -26,8 +26,12 @@ struct ReadingView: View {
         VStack(spacing: 0) {
             header
 
-            LoadableView(state: planDays, retry: { Task { await load() } }) { days in
-                content(planDays: days)
+            if session.planFinished {
+                finished
+            } else {
+                LoadableView(state: planDays, retry: { Task { await load() } }) { days in
+                    content(planDays: days)
+                }
             }
         }
         // Keyed to the plan: bootstrap may not have resolved it when this
@@ -51,6 +55,68 @@ struct ReadingView: View {
         }
         .fullScreenCover(item: $reading) { item in
             ReadingPager(item: item, onClose: { reading = nil })
+        }
+    }
+
+    // MARK: - Finished (KAN-35)
+
+    /// Once the plan is over, the readings close until the next plan starts,
+    /// rather than offering "Start Reading" on a plan with nothing left. No
+    /// buttons: the recap and Start a new plan already live on Home, so this
+    /// points there instead of repeating them.
+    private var finished: some View {
+        ScrollView {
+            VStack(spacing: Space.lg) {
+                PlanCover(title: plan?.title ?? "", imageURL: planArt)
+                    .frame(height: 200)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(t.textSecondary)
+                    .padding(.top, Space.md)
+
+                Text(finishedTitle)
+                    .font(.dwellTitle)
+                    .foregroundStyle(t.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(finishedDetail)
+                    .font(.dwellBody)
+                    .foregroundStyle(t.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(LineSpacing.small)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, Space.gutter)
+            .padding(.top, Space.lg)
+            .padding(.bottom, TabBarMetrics.clearance)
+        }
+        .scrollIndicators(.hidden)
+        .refreshable { await session.reload() }
+    }
+
+    private var finishedTitle: String {
+        switch session.group.value??.challengeStatus {
+        case .completed:
+            return "You finished \(plan?.title ?? "this plan")"
+        case .abandoned, .expiredIncomplete:
+            return "This plan has ended"
+        default:
+            return "That's the last day"
+        }
+    }
+
+    private var finishedDetail: String {
+        switch session.group.value??.challengeStatus {
+        case .completed:
+            return "Every day of this plan is behind you. Head to Home to look back on it, or to start something new."
+        case .abandoned, .expiredIncomplete:
+            return "Its readings are closed. Head to Home to start something new together."
+        default:
+            return "You've posted on the final day. Your group's recap arrives once the challenge closes, within a day."
         }
     }
 
@@ -84,6 +150,7 @@ struct ReadingView: View {
                 PlanCover(title: plan?.title ?? "", imageURL: planArt)
                     .frame(height: 200)
                     .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+                    .padding(.top, Space.lg)
 
                 daySelector(days: days, selected: index)
 

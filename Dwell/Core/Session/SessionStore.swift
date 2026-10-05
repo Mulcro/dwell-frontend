@@ -324,6 +324,28 @@ final class SessionStore {
 
     var isSignedIn: Bool { me != nil }
 
+    /// The plan is over for you (KAN-35): the challenge has ended, or it's the
+    /// plan's final day and you've posted on it. The second half covers the
+    /// stretch, up to a day, where the backend keeps the group active after
+    /// the last day. Not "the day is unlocked": someone who hasn't posted yet
+    /// still needs the final reading to do so.
+    var planFinished: Bool {
+        guard let g = group.value ?? nil else { return false }
+        if g.challengeStatus.isEnded { return true }
+        guard let day = currentDay, let total = plan?.dayCount, day.dayIndex >= total else {
+            return false
+        }
+        return hasPosted(on: day.id)
+    }
+
+    /// Opens What's Next: an invitation from the crew, same crew, make a
+    /// group, join with a code, and the archive.
+    func startNewPlan() {
+        startingNewPlan = true
+        onboardingStep = .startOrJoin
+        resetOnboarding()
+    }
+
     // MARK: - Same crew, new plan
 
     /// Turned-down invitations, per account on this device. The backend keeps

@@ -63,6 +63,10 @@ struct ProfileView: View {
                               Task { await upload(cropped) }
                           })
         }
+        // DWELL_SETTINGS=1 opens Settings straight away, for screenshots.
+        .task {
+            if ProcessInfo.processInfo.environment["DWELL_SETTINGS"] == "1" { showSettings = true }
+        }
         .sheet(isPresented: $showSettings) {
             SettingsView(onBack: { showSettings = false })
         }

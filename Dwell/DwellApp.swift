@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct DwellApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var session: SessionStore
     /// Only present on the mock backend — drives the debug scenario switcher.
     @State private var mock: MockDwellAPI?

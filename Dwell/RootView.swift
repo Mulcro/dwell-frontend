@@ -21,6 +21,10 @@ struct RootView: View {
             }
         }
         .task { await boot() }
+        .onReceive(NotificationCenter.default.publisher(for: .dwellPushToken)) { note in
+            guard let token = note.object as? String else { return }
+            Task { await session.savePushToken(token) }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, !showSplash { Task { await session.reload() } }
         }

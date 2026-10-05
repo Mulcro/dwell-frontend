@@ -346,6 +346,26 @@ final class SessionStore {
         resetOnboarding()
     }
 
+    // MARK: - Push
+
+    /// The device's APNs token, held until someone is signed in to own it.
+    private var devicePushToken: String?
+
+    func savePushToken(_ token: String) async {
+        devicePushToken = token
+        await uploadPushToken()
+    }
+
+    /// PATCHes the token onto your own row, skipping the request when it's
+    /// already there. A failure is retried on the next launch's registration.
+    private func uploadPushToken() async {
+        guard let token = devicePushToken, let me, me.pushToken != token else { return }
+        if let updated = try? await api.updateProfile(name: nil, timezone: nil,
+                                                      preferredLanguage: nil, pushToken: token) {
+            self.me = updated
+        }
+    }
+
     // MARK: - Same crew, new plan
 
     /// Turned-down invitations, per account on this device. The backend keeps
@@ -532,6 +552,8 @@ final class SessionStore {
             group = .loaded(g)
             if let g { try await loadGroupDetail(g) }
             await loadContinuations()
+            await uploadPushToken()
+            await PushRegistration.registerIfAuthorized()
         } catch DwellError.notAuthenticated {
             signedOut()
         } catch {

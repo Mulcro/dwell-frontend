@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 /// Figma: "Settings · Group Owner" / "Settings · Member".
 ///
@@ -13,6 +14,9 @@ struct SettingsView: View {
     @Environment(\.dwell) private var t
 
     @State private var notifications: [String: Bool] = [:]
+    /// iOS's own answer for Dwell, re-read on return from iOS Settings.
+    @State private var pushStatus: UNAuthorizationStatus?
+    @Environment(\.scenePhase) private var scenePhase
     @State private var findByPhone = false
     @State private var contactSync = false
     @State private var showLanguage = false
@@ -128,14 +132,54 @@ struct SettingsView: View {
             }
 
             divider
-            // Honest about reach: push needs a paid Apple Developer
-            // membership, so until then these govern what appears in the app.
-            Text("Reminders appear in Dwell for now. Push notifications arrive "
-                 + "once the app is on the App Store.")
-                .font(.dwellCaption)
+            pushRow
+        }
+        .task { await refreshPushStatus() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await refreshPushStatus() } }
+        }
+    }
+
+    /// Onboarding is the only other place that asks, and only new accounts
+    /// go through it, so this is how everyone else turns push on.
+    @ViewBuilder
+    private var pushRow: some View {
+        switch pushStatus {
+        case .authorized, .provisional, .ephemeral:
+            Label("Push notifications are on", systemImage: "bell.badge")
+                .font(.dwellSmall)
                 .foregroundStyle(t.textSecondary)
                 .padding(.top, Space.sm)
+        case .denied:
+            VStack(alignment: .leading, spacing: Space.sm) {
+                Text("Push notifications are off for Dwell. iOS only lets you turn them back on in Settings.")
+                    .font(.dwellSmall)
+                    .foregroundStyle(t.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                SecondaryButton(title: "Open Settings", bordered: true, compact: true) {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+            }
+            .padding(.top, Space.sm)
+        case .notDetermined:
+            PrimaryButton(title: "Turn on push notifications", accent: true, compact: true) {
+                Task {
+                    let granted = try? await UNUserNotificationCenter.current()
+                        .requestAuthorization(options: [.alert, .sound, .badge])
+                    if granted == true { UIApplication.shared.registerForRemoteNotifications() }
+                    await refreshPushStatus()
+                }
+            }
+            .padding(.top, Space.sm)
+        default:
+            EmptyView()
         }
+    }
+
+    private func refreshPushStatus() async {
+        pushStatus = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
     }
 
     private var preferencesCard: some View {

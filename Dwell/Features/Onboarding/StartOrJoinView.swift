@@ -105,6 +105,12 @@ struct StartOrJoinView: View {
                     .font(.dwellBodyMd)
                     .foregroundStyle(t.textPrimary)
 
+                ForEach(session.continuations) { invite in
+                    // The flow is still open here, so close it once the
+                    // session has moved onto the new group.
+                    ContinuationCard(invite: invite, onJoined: { session.finishOnboarding() })
+                }
+
                 sameCrewRow
                 makeGroupCard
                 joinCard

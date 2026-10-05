@@ -83,6 +83,14 @@ struct HomeView: View {
         // Screenshot hooks, keyed to the insight because it loads after
         // boot: DWELL_COMPLETE=1 opens the celebration, DWELL_RECAP=1 the
         // recap itself.
+        // DWELL_ACCEPT=1 joins the first invitation once it loads, to check
+        // where accepting lands.
+        .task(id: session.continuations.first?.groupId) {
+            if ProcessInfo.processInfo.environment["DWELL_ACCEPT"] == "1",
+               let invite = session.continuations.first {
+                try? await session.acceptContinuation(invite)
+            }
+        }
         .task(id: session.endRecap) {
             if ProcessInfo.processInfo.environment["DWELL_COMPLETE"] == "1",
                session.endRecap != nil { showComplete = true }
@@ -289,6 +297,8 @@ struct HomeView: View {
     /// tap away, and so is starting the next thing — create or join.
     private var completedCard: some View {
         VStack(spacing: Space.lg) {
+            continuationCards
+
             PlanCoverThumb(title: session.plan?.title ?? "Your plan",
                            imageURL: planArt,
                            size: 132,
@@ -318,6 +328,8 @@ struct HomeView: View {
     /// (fallback_recap) and the way on are both still here.
     private var endedCard: some View {
         VStack(spacing: Space.lg) {
+            continuationCards
+
             PlanCoverThumb(title: session.plan?.title ?? "Your plan",
                            imageURL: planArt,
                            size: 132,
@@ -343,6 +355,15 @@ struct HomeView: View {
             SecondaryButton(title: "Start a new plan", action: startNewPlan)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// A crew-mate's next plan leads the finished state: joining it is the
+    /// most likely next move.
+    @ViewBuilder
+    private var continuationCards: some View {
+        ForEach(session.continuations) { invite in
+            ContinuationCard(invite: invite)
+        }
     }
 
     /// Opens What's Next: same crew, make a group, join with a code, and the

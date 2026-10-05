@@ -48,11 +48,20 @@ protocol DwellAPI {
                      frequency: Frequency,
                      customDays: [Int]?,
                      timezone: String,
-                     autoSkipAfterDays: Int?) async throws -> CreateGroupResponse
+                     autoSkipAfterDays: Int?,
+                     continuesGroupId: UUID?) async throws -> CreateGroupResponse
 
     /// POST /join-group. If this join brings membership to 2, flips the group
     /// to `active` and creates the Day 1 row.
     func joinGroup(inviteToken: String) async throws -> JoinGroupResponse
+
+    /// One-tap accept of a "same crew, new plan" invitation (KAN-50). Allowed
+    /// only for members of the group it continues; the rules are otherwise
+    /// those of joining by code.
+    func joinGroup(groupId: UUID) async throws -> JoinGroupResponse
+
+    /// Pending "same crew, new plan" invitations, newest first.
+    func myContinuations() async throws -> [Continuation]
 
     /// POST /rest/v1/rpc/preview_group — public, unauthenticated. Returns an
     /// array; an empty one means the token matches nothing, which is a normal

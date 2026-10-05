@@ -356,17 +356,25 @@ final class SessionStore {
         await uploadPushToken()
     }
 
+    /// The upload in flight, so sign-out can wait for it before clearing.
+    private var pushUpload: Task<Void, Never>?
+    private var signingOut = false
+
     /// PATCHes the token onto your own row, skipping the request when it's
     /// already there. A failure is retried on the next registration.
     private func uploadPushToken() async {
-        guard let token = devicePushToken, let me, me.pushToken != token else { return }
+        guard !signingOut, let token = devicePushToken, let me, me.pushToken != token else { return }
         let owner = me.id
-        guard let updated = try? await api.updateProfile(name: nil, timezone: nil,
-                                                         preferredLanguage: nil, pushToken: token)
-        else { return }
-        // An account switch mid-request would otherwise put the previous
-        // account's profile back on screen.
-        if self.me?.id == owner { self.me = updated }
+        let upload = Task { @MainActor in
+            guard let updated = try? await api.updateProfile(name: nil, timezone: nil,
+                                                             preferredLanguage: nil, pushToken: token)
+            else { return }
+            // An account switch mid-request would otherwise put the previous
+            // account's profile back on screen.
+            if self.me?.id == owner { self.me = updated }
+        }
+        pushUpload = upload
+        await upload.value
     }
 
     /// The reflection a tapped reply push is about. Nil when the push is for
@@ -385,6 +393,11 @@ final class SessionStore {
     /// for the next account to claim. Best effort: signing out never waits
     /// on it succeeding.
     func signOut() async {
+        // No new upload may start, and one already in flight finishes first:
+        // landing after the clear would put the token back on this account.
+        signingOut = true
+        defer { signingOut = false }
+        await pushUpload?.value
         try? await api.clearPushToken()
         try? await api.signOut()
     }

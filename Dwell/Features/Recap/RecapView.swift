@@ -14,6 +14,7 @@ struct RecapView: View {
     /// session's current group.
     var groupName: String? = nil
     var names: [UUID: String] = [:]
+    var avatars: [UUID: URL] = [:]
     var onClose: () -> Void = {}
 
     @Environment(SessionStore.self) private var session
@@ -111,7 +112,7 @@ struct RecapView: View {
                 ForEach(members) { member in
                     HStack(alignment: .center, spacing: Space.md) {
                         PhotoAvatar(name: name(for: member.userId),
-                                    url: session.avatarURL(for: member.userId),
+                                    url: avatars[member.userId] ?? session.avatarURL(for: member.userId),
                                     size: 40)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(name(for: member.userId))

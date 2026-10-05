@@ -473,20 +473,21 @@ final class SessionStore {
             .first { $0.targetUserId == me?.id }
         // Scoped to the current day — an older day's pulse resurfacing on
         // today's home would read as today's.
+        // insights() is newest first, so .first is the latest row.
         groupPulse = try? await api.insights(groupId: g.id, type: .groupPulse)
-            .last { $0.dayInstanceId == currentDay?.id }
+            .first { $0.dayInstanceId == currentDay?.id }
 
-        endRecap = (try? await api.insights(groupId: g.id, type: .endSummary))?.last
+        endRecap = (try? await api.insights(groupId: g.id, type: .endSummary))?.first
         if endRecap == nil {
-            endRecap = (try? await api.insights(groupId: g.id, type: .fallbackRecap))?.last
+            endRecap = (try? await api.insights(groupId: g.id, type: .fallbackRecap))?.first
         }
-        weeklyRecap = (try? await api.insights(groupId: g.id, type: .weeklyRecap))?.last
+        weeklyRecap = (try? await api.insights(groupId: g.id, type: .weeklyRecap))?.first
 
         // Not the insight row: one is written per member and never deleted,
         // so the row's presence would strand people on that screen forever.
         inactivityPromptPending = g.promptPending
         inactivityPrompt = g.promptPending
-            ? try? await api.insights(groupId: g.id, type: .inactivityPrompt).last
+            ? try? await api.insights(groupId: g.id, type: .inactivityPrompt).first
             : nil
     }
 

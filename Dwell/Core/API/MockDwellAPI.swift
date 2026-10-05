@@ -600,11 +600,14 @@ final class MockDwellAPI: DwellAPI {
     func insights(groupId: UUID, type: InsightType?) async throws -> [AIInsight] {
         try await tick()
         guard let me else { throw DwellError.notAuthenticated }
+        // Newest first, like the real query: callers take .first, and an
+        // oldest-first mock hid a .last that picked stale rows on prod.
         return insightsStore.filter { insight in
             insight.groupId == groupId
             && (type == nil || insight.type == type)
             && (insight.targetUserId == nil || insight.targetUserId == me.id)
         }
+        .sorted { $0.createdAt > $1.createdAt }
     }
 
     func leaderboard(groupId: UUID, weekStart: Date?) async throws -> [LeaderboardEntry] {

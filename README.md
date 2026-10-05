@@ -16,9 +16,8 @@ The backend, including the full AI pipeline, is
 - **Eagle's reply** under each of your reflections, in your language (Feed).
 - **Translation**: reflections, replies and the Group Pulse appear in each
   reader's language and say "Translated from". Reflections and the Pulse also
-  offer "See original"; replies show the label only. Eagle's reply is shown in
-  the author's language (the backend stores its translations, but the app
-  doesn't display them yet).
+  offer "See original"; replies show the label only. Eagle's reply is shown
+  translated too, but without the label or a way back to the original yet.
 - **Group Pulse**: once a day unlocks, a headline about what the group noticed,
   and each member's stated intention (Home, Pulse).
 - **Weekly and end-of-challenge recaps**: the thread the group kept coming

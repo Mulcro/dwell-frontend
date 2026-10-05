@@ -66,7 +66,7 @@ struct ReadingView: View {
     /// points there instead of repeating them.
     private var finished: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Space.lg) {
+            VStack(spacing: Space.lg) {
                 PlanCover(title: plan?.title ?? "", imageURL: planArt)
                     .frame(height: 200)
                     .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
@@ -79,15 +79,17 @@ struct ReadingView: View {
                 Text(finishedTitle)
                     .font(.dwellTitle)
                     .foregroundStyle(t.textPrimary)
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(finishedDetail)
                     .font(.dwellBody)
                     .foregroundStyle(t.textSecondary)
+                    .multilineTextAlignment(.center)
                     .lineSpacing(LineSpacing.small)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, Space.gutter)
             .padding(.top, Space.lg)
             .padding(.bottom, TabBarMetrics.clearance)

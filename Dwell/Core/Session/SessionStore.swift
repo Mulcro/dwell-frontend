@@ -94,6 +94,11 @@ final class SessionStore {
     var inactivityPrompt: AIInsight?
     /// The companion's synthesis of the day, written once the day unlocks.
     var groupPulse: AIInsight?
+    /// The challenge-end card: end_summary, or fallback_recap when the
+    /// challenge closed with little material. Latest row wins.
+    var endRecap: AIInsight?
+    /// The most recent Monday recap, if one has been written.
+    var weeklyRecap: AIInsight?
 
     #if DEBUG
     /// Preview switches for the two states that only occur after days of real
@@ -174,7 +179,13 @@ final class SessionStore {
     func finishOnboarding() {
         onboardingActive = false
         onboardingStep = .welcome
+        startingNewPlan = false
     }
+
+    /// Set by "Start a new plan" on a finished group. Someone on their second
+    /// challenge has already answered the notifications question, so the
+    /// flow ends on Home instead of asking again.
+    var startingNewPlan = false
 
     /// Where the onboarding flow currently is. Lives here, not in the view:
     /// signing up flips the auth state, the router rebuilds OnboardingFlow,
@@ -269,8 +280,11 @@ final class SessionStore {
         case .inactivityPrompt:
             inactivityPrompt = insight
 
-        default:
-            break
+        case .endSummary, .fallbackRecap:
+            endRecap = insight
+
+        case .weeklyRecap:
+            weeklyRecap = insight
         }
     }
 
@@ -459,14 +473,21 @@ final class SessionStore {
             .first { $0.targetUserId == me?.id }
         // Scoped to the current day — an older day's pulse resurfacing on
         // today's home would read as today's.
+        // insights() is newest first, so .first is the latest row.
         groupPulse = try? await api.insights(groupId: g.id, type: .groupPulse)
-            .last { $0.dayInstanceId == currentDay?.id }
+            .first { $0.dayInstanceId == currentDay?.id }
+
+        endRecap = (try? await api.insights(groupId: g.id, type: .endSummary))?.first
+        if endRecap == nil {
+            endRecap = (try? await api.insights(groupId: g.id, type: .fallbackRecap))?.first
+        }
+        weeklyRecap = (try? await api.insights(groupId: g.id, type: .weeklyRecap))?.first
 
         // Not the insight row: one is written per member and never deleted,
         // so the row's presence would strand people on that screen forever.
         inactivityPromptPending = g.promptPending
         inactivityPrompt = g.promptPending
-            ? try? await api.insights(groupId: g.id, type: .inactivityPrompt).last
+            ? try? await api.insights(groupId: g.id, type: .inactivityPrompt).first
             : nil
     }
 
@@ -488,6 +509,8 @@ final class SessionStore {
         pendingNudge = nil
         inactivityPrompt = nil
         groupPulse = nil
+        endRecap = nil
+        weeklyRecap = nil
         inactivityPromptPending = false
         onboardingActive = false
         realtime?.cancel()
@@ -533,6 +556,8 @@ final class SessionStore {
         pendingNudge = nil
         inactivityPrompt = nil
         groupPulse = nil
+        endRecap = nil
+        weeklyRecap = nil
         inactivityPromptPending = false
     }
 

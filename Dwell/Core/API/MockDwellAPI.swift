@@ -229,6 +229,22 @@ final class MockDwellAPI: DwellAPI {
     }
 
     private func seedInsights(scenario: Scenario) {
+        insightsStore.append(AIInsight(
+            id: UUID(), groupId: Self.soulRestId, dayInstanceId: nil, targetUserId: nil,
+            scope: .groupChallenge, type: .endSummary,
+            content: "Seven days of the Psalms, and the thread was rest you had to choose.",
+            createdAt: .now.addingTimeInterval(-86_400 * 30),
+            payload: PulsePayload(
+                headline: "rest as something you practise, not something you wait for",
+                members: [
+                    PulseMember(userId: Seed.maya.id, line: "Kept the group chat honest"),
+                    PulseMember(userId: Seed.priya.id, line: "Prayed in three languages"),
+                    PulseMember(userId: Seed.daniel.id, line: "Never missed a morning")
+                ],
+                reflectionCount: 97,
+                daysShowedUp: 7,
+                daysTotal: 7)))
+
         guard let today = days.last else { return }
 
         if scenario == .dayUnlocked || scenario == .postedLate {
@@ -261,7 +277,20 @@ final class MockDwellAPI: DwellAPI {
                 id: UUID(), groupId: Seed.groupId, dayInstanceId: nil, targetUserId: nil,
                 scope: .groupChallenge, type: .endSummary,
                 content: "You came in wanting to be consistent. You left talking about people.\n\nWeek 1 was showing up, short entries, mostly about the reading itself. By the middle it was hope as something you had to choose on a Tuesday. Three separate entries end with you calling someone back. That's the application you kept choosing, not more reading.\n\nAcross the group, \u{201C}anchor\u{201D} landed in four languages on the same four phone calls home.",
-                createdAt: .now))
+                createdAt: .now,
+                // The recap card (contract, 2026-10-03), so the completed
+                // scenario demos the full screen.
+                payload: PulsePayload(
+                    headline: "hope as something you choose, then act on",
+                    members: [
+                        PulseMember(userId: Seed.maya.id, line: "Asked the questions that got replies"),
+                        PulseMember(userId: Seed.priya.id, line: "Wrote in two languages, always about home"),
+                        PulseMember(userId: Seed.jordan.id, line: "Shared a voice note for the first time"),
+                        PulseMember(userId: Seed.daniel.id, line: "Kept coming back to rest")
+                    ],
+                    reflectionCount: 22,
+                    daysShowedUp: 6,
+                    daysTotal: 7)))
         }
 
         if scenario == .abandoned || scenario == .expiredIncomplete {
@@ -327,12 +356,12 @@ final class MockDwellAPI: DwellAPI {
 
     func createGroup(name: String, planChallengeId: UUID,
                      frequency: Frequency, customDays: [Int]?, timezone: String,
-                     catchUpThresholdPct: Int?, autoSkipAfterDays: Int?) async throws -> CreateGroupResponse {
+                     autoSkipAfterDays: Int?) async throws -> CreateGroupResponse {
         try await tick()
         guard let me else { throw DwellError.notAuthenticated }
         let token = String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(6)).uppercased()
         let new = DwellGroup(id: UUID(), name: name, planChallengeId: planChallengeId,
-                        catchUpThresholdPct: catchUpThresholdPct ?? 50,
+                        catchUpThresholdPct: 50,
                         autoSkipAfterDays: autoSkipAfterDays ?? 3,
                         frequency: frequency, customDays: customDays, timezone: timezone,
                         challengeStatus: .forming, promptPending: false, inviteToken: token,
@@ -470,6 +499,34 @@ final class MockDwellAPI: DwellAPI {
     }
 
     func myGroup() async throws -> DwellGroup? { try await tick(); return group }
+
+    /// Two finished challenges sit behind the current group, so What's Next
+    /// has an archive to show. Soul Rest carries a recap card; Lent with
+    /// Roomies has none, which is the case View has to handle.
+    static let soulRestId = UUID(uuidString: "00000000-0000-0000-0000-0000000000B7")!
+    static let lentId = UUID(uuidString: "00000000-0000-0000-0000-0000000000B8")!
+
+    func myGroups() async throws -> [GroupSummary] {
+        try await tick()
+        guard let g = group else { return [] }
+        let plan = Seed.plans.first { $0.id == g.planChallengeId }
+        let current = GroupSummary(
+            id: g.id, name: g.name, challengeStatus: g.challengeStatus,
+            planChallengeId: g.planChallengeId, planTitle: plan?.title ?? "",
+            planImagePath: plan?.imagePath, dayCount: plan?.dayCount ?? 7,
+            memberCount: membersStore.count, reflectionCount: 11)
+        let archived = [
+            GroupSummary(id: Self.soulRestId, name: "Soul Rest", challengeStatus: .completed,
+                         planChallengeId: Seed.james.id, planTitle: Seed.james.title,
+                         planImagePath: nil, dayCount: 7, memberCount: 5, reflectionCount: 97),
+            GroupSummary(id: Self.lentId, name: "Lent with Roomies", challengeStatus: .abandoned,
+                         planChallengeId: Seed.anchored.id, planTitle: Seed.anchored.title,
+                         planImagePath: nil, dayCount: 7, memberCount: 3, reflectionCount: 12)
+        ]
+        // The current group leads either way: if it's still going it wins
+        // outright, and if it's finished it's the most recently active.
+        return [current] + archived
+    }
     func members(groupId: UUID) async throws -> [GroupMember] { try await tick(); return membersStore }
     func users(ids: [UUID]) async throws -> [DwellUser] {
         try await tick(); return Seed.allUsers.filter { ids.contains($0.id) }
@@ -543,10 +600,14 @@ final class MockDwellAPI: DwellAPI {
     func insights(groupId: UUID, type: InsightType?) async throws -> [AIInsight] {
         try await tick()
         guard let me else { throw DwellError.notAuthenticated }
+        // Newest first, like the real query: callers take .first, and an
+        // oldest-first mock hid a .last that picked stale rows on prod.
         return insightsStore.filter { insight in
-            (type == nil || insight.type == type)
+            insight.groupId == groupId
+            && (type == nil || insight.type == type)
             && (insight.targetUserId == nil || insight.targetUserId == me.id)
         }
+        .sorted { $0.createdAt > $1.createdAt }
     }
 
     func leaderboard(groupId: UUID, weekStart: Date?) async throws -> [LeaderboardEntry] {

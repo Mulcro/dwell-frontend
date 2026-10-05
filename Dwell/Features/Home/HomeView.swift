@@ -11,6 +11,10 @@ struct HomeView: View {
     @State private var showPulse = false
     @State private var nudging = false
     @State private var nudgedMarker: String?
+    /// The recap being read full screen — weekly from its card, or the
+    /// challenge recap from inside the celebration.
+    @State private var openRecap: AIInsight?
+    @State private var showComplete = false
 
     private var group: DwellGroup? { session.group.value ?? nil }
     private var state: HomeState { HomeState.resolve(session) }
@@ -39,6 +43,9 @@ struct HomeView: View {
                         .padding(.top, Space.lg)
 
                     pulseCard
+                        .padding(.top, Space.lg)
+
+                    weeklyRecapCard
                         .padding(.top, Space.lg)
 
                     body(for: state)
@@ -71,9 +78,25 @@ struct HomeView: View {
         .task {
             if ProcessInfo.processInfo.environment["DWELL_REFLECT"] == "1" { showReflect = true }
             if ProcessInfo.processInfo.environment["DWELL_FEED"] == "1" { showFeed = true }
+            if ProcessInfo.processInfo.environment["DWELL_WHATSNEXT"] == "1" { startNewPlan() }
+        }
+        // Screenshot hooks, keyed to the insight because it loads after
+        // boot: DWELL_COMPLETE=1 opens the celebration, DWELL_RECAP=1 the
+        // recap itself.
+        .task(id: session.endRecap) {
+            if ProcessInfo.processInfo.environment["DWELL_COMPLETE"] == "1",
+               session.endRecap != nil { showComplete = true }
+            if ProcessInfo.processInfo.environment["DWELL_RECAP"] == "1",
+               let recap = session.endRecap { openRecap = recap }
         }
         .fullScreenCover(isPresented: $showFeed) {
             FeedView(onClose: { showFeed = false })
+        }
+        .fullScreenCover(item: $openRecap) { recap in
+            RecapView(insight: recap, onClose: { openRecap = nil })
+        }
+        .fullScreenCover(isPresented: $showComplete) {
+            ChallengeCompleteView(onClose: { showComplete = false })
         }
         .fullScreenCover(isPresented: $showReflect) {
             DayFlow(startAt: reflectStart, onClose: {
@@ -99,6 +122,12 @@ struct HomeView: View {
 
         case let .dayOpen(_, posted, total):
             open(posted: posted, total: total)
+
+        case .completed:
+            completedCard
+
+        case .endedEarly:
+            endedCard
 
         default:
             // forming / paused / completed / ended / noOpenDay / noGroup all
@@ -254,6 +283,115 @@ struct HomeView: View {
             nextOpensNote
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// The finished state on Home: the celebration (confetti and all) is a
+    /// tap away, and so is starting the next thing — create or join.
+    private var completedCard: some View {
+        VStack(spacing: Space.lg) {
+            PlanCoverThumb(title: session.plan?.title ?? "Your plan",
+                           imageURL: planArt,
+                           size: 132,
+                           corner: Radius.lg)
+
+            Text("You finished it")
+                .font(.dwellTitle)
+                .foregroundStyle(t.textPrimary)
+                .multilineTextAlignment(.center)
+
+            Text("You cleared the last day together.")
+                .font(.dwellBody)
+                .foregroundStyle(t.textSecondary)
+                .multilineTextAlignment(.center)
+
+            PrimaryButton(title: "See what these \(session.plan?.dayCount ?? session.days.count) days held",
+                          accent: true) {
+                showComplete = true
+            }
+
+            SecondaryButton(title: "Start a new plan", action: startNewPlan)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Abandoned or expired: no celebration, but the lighter recap
+    /// (fallback_recap) and the way on are both still here.
+    private var endedCard: some View {
+        VStack(spacing: Space.lg) {
+            PlanCoverThumb(title: session.plan?.title ?? "Your plan",
+                           imageURL: planArt,
+                           size: 132,
+                           corner: Radius.lg)
+
+            Text(state.headline)
+                .font(.dwellTitle)
+                .foregroundStyle(t.textPrimary)
+                .multilineTextAlignment(.center)
+
+            Text(state.detail)
+                .font(.dwellBody)
+                .foregroundStyle(t.textSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let recap = session.endRecap {
+                PrimaryButton(title: "Look back on it", accent: true) {
+                    openRecap = recap
+                }
+            }
+
+            SecondaryButton(title: "Start a new plan", action: startNewPlan)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Opens What's Next: same crew, make a group, join with a code, and the
+    /// archive.
+    private func startNewPlan() {
+        session.startingNewPlan = true
+        session.onboardingStep = .startOrJoin
+        session.resetOnboarding()
+    }
+
+    /// Entry to the Monday recap, styled like the pulse card.
+    @ViewBuilder
+    private var weeklyRecapCard: some View {
+        if let recap = session.weeklyRecap {
+            Button { openRecap = recap } label: {
+                HStack(spacing: Space.md) {
+                    ZStack {
+                        Circle().fill(t.accent.opacity(0.15))
+                        Image(systemName: "calendar")
+                            .font(.system(size: 15))
+                            .foregroundStyle(t.accent)
+                    }
+                    .frame(width: 36, height: 36)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Your week in review")
+                            .font(.dwellBodyMd)
+                            .foregroundStyle(t.textPrimary)
+                        Text(recap.payload(in: session.me?.preferredLanguage ?? "en")?.headline
+                             ?? "What the week kept coming back to")
+                            .font(.dwellSmall)
+                            .foregroundStyle(t.textSecondary)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(t.textSecondary)
+                }
+                .padding(Space.lg)
+                .background(t.surface)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Radius.lg, style: .continuous)
+                        .strokeBorder(t.border, lineWidth: 1)
+                )
+            }
+            .buttonStyle(PressScale())
+        }
     }
 
     private var genericCard: some View {

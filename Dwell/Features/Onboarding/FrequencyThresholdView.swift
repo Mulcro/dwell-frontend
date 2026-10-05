@@ -2,14 +2,16 @@ import SwiftUI
 
 /// Figma: "Frequency & Threshold". The rhythm, framed around the 4-day finding
 /// from the previous screen.
+///
+/// The threshold half of the comp is gone (KAN-43): it is fixed at half the
+/// group, so the screen states the rule instead of offering a control.
 struct FrequencyThresholdView: View {
     var onBack: () -> Void = {}
-    var onNext: (Frequency, [Int]?, Int, Int) -> Void = { _, _, _, _ in }
+    var onNext: (Frequency, [Int]?, Int) -> Void = { _, _, _ in }
 
     @Environment(\.dwell) private var t
     @State private var frequency: Frequency = .fourPerWeek
     @State private var customDays: Set<Int> = [1, 3, 5]
-    @State private var threshold = 50
     @State private var moveOnAfter = 3
 
     private var customSummary: String {
@@ -56,15 +58,15 @@ struct FrequencyThresholdView: View {
                                 .foregroundStyle(t.textSecondary)
                         }
 
-                        VStack(alignment: .leading, spacing: Space.md) {
-                            Text("Unlock Threshold")
-                                .font(.dwellSmallMd)
+                        HStack(alignment: .top, spacing: Space.sm) {
+                            Image(systemName: "lock.open")
+                                .font(.system(size: 14))
+                                .foregroundStyle(t.accent)
+                                .padding(.top, 2)
+                            Text("Each day unlocks once half the group has posted.")
+                                .font(.dwellBody)
                                 .foregroundStyle(t.textPrimary)
-                            ThresholdStepper(percent: $threshold)
-                            Text("Half the group has to post before anyone can read the day. Raise it for a tighter group, lower it if people travel.")
-                                .font(.dwellCaption)
-                                .lineSpacing(LineSpacing.small)
-                                .foregroundStyle(t.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
 
                         VStack(alignment: .leading, spacing: Space.md) {
@@ -72,7 +74,7 @@ struct FrequencyThresholdView: View {
                                 .font(.dwellSmallMd)
                                 .foregroundStyle(t.textPrimary)
                             HStack {
-                                Text("\(moveOnAfter) day\(moveOnAfter == 1 ? "" : "s") below the threshold")
+                                Text("\(moveOnAfter) day\(moveOnAfter == 1 ? "" : "s") without half posting")
                                     .font(.dwellBody)
                                     .foregroundStyle(t.textPrimary)
                                 Spacer()
@@ -93,7 +95,7 @@ struct FrequencyThresholdView: View {
                               enabled: frequency != .custom || !customDays.isEmpty) {
                     onNext(frequency,
                            frequency == .custom ? customDays.sorted() : nil,
-                           threshold, moveOnAfter)
+                           moveOnAfter)
                 }
             }
             .padding(.horizontal, Space.gutter)

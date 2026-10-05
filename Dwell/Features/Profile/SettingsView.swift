@@ -2,15 +2,10 @@ import SwiftUI
 
 /// Figma: "Settings · Group Owner" / "Settings · Member".
 ///
-/// Only the unambiguous parts are built. Two things are deliberately left
-/// pending a design decision (see the design-notes page):
-///
-///   • The two frames are identical, and the owner's shows "Set by group
-///     owner." under the threshold — so who can edit it is unclear. The slider
-///     is read-only for everyone here, which is the least-wrong reading.
-///   • "Catch-Up Threshold" is used as the heading for two different sections.
-///     The second block is rendered without a heading rather than shipping a
-///     visible duplicate.
+/// The comps' Unlock Threshold slider is gone (KAN-43): the threshold is
+/// fixed at half the group, so there is nothing to set or show. The privacy
+/// block below still renders without a heading — the comps label it
+/// "Catch-Up Threshold", which is a copy error, and the client doesn't guess.
 struct SettingsView: View {
     var onBack: () -> Void = {}
 
@@ -47,7 +42,6 @@ struct SettingsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: Space.xl) {
                         section("Notifications") { notificationCard }
-                        section("Catch-Up Threshold") { thresholdCard }
                         // Heading omitted deliberately — see the type doc.
                         preferencesCard
 
@@ -142,47 +136,6 @@ struct SettingsView: View {
                 .foregroundStyle(t.textSecondary)
                 .padding(.top, Space.sm)
         }
-    }
-
-    /// Read-only pending the owner/member decision.
-    private var thresholdCard: some View {
-        card {
-            VStack(alignment: .leading, spacing: Space.md) {
-                HStack {
-                    Text("Unlock Threshold")
-                        .font(.dwellCardTitle)
-                        .foregroundStyle(t.textPrimary)
-                    Spacer()
-                    Text("\(group?.catchUpThresholdPct ?? 50)%")
-                        .font(.dwellCardTitleStrong)
-                        .foregroundStyle(t.accent)
-                }
-
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(t.surfaceRaised)
-                        Capsule().fill(t.accent)
-                            .frame(width: geo.size.width * thresholdFraction)
-                        Circle()
-                            .fill(t.background)
-                            .frame(width: 24, height: 24)
-                            .shadow(color: .black.opacity(0.15), radius: 3, y: 1)
-                            .offset(x: geo.size.width * thresholdFraction - 12)
-                    }
-                }
-                .frame(height: 24)
-                .accessibilityLabel("Unlock threshold \(group?.catchUpThresholdPct ?? 50) percent, set by the group owner")
-
-                Text("Set by group owner.")
-                    .font(.dwellSmall)
-                    .foregroundStyle(t.textSecondary)
-            }
-            .padding(.vertical, Space.sm)
-        }
-    }
-
-    private var thresholdFraction: CGFloat {
-        CGFloat(group?.catchUpThresholdPct ?? 50) / 100
     }
 
     private var preferencesCard: some View {

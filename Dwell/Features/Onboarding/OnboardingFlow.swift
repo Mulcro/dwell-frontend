@@ -35,6 +35,7 @@ struct OnboardingFlow: View {
         case "howItWorks":   return .howItWorks
         case "startOrJoin":  return .startOrJoin
         case "buildGroup":   return .buildGroup
+        case "frequency":    return .frequency(name: "Sunday Crew", plan: Seed.anchored)
         case "invite":       return .invite
         case "share":        return .share
         case "notifications": return .notifications
@@ -43,6 +44,9 @@ struct OnboardingFlow: View {
     }
     /// Guards the one-time entry correction below.
     @State private var resolvedEntry = false
+    /// The finished group's name, carried into Build Group by "Same crew,
+    /// new plan". Empty for an ordinary create.
+    @State private var newGroupName = ""
     /// Which page the explainer opens on: 0 going forward from Stats,
     /// the last page when Back from Start-or-Join re-enters it.
     @State private var explainerStart = 0
@@ -123,30 +127,54 @@ struct OnboardingFlow: View {
                               onDone: { step = .startOrJoin })
 
         case .startOrJoin:
-            StartOrJoinView(onBack: { explainerStart = 3; step = .howItWorks },
-                            onCreate: { step = .buildGroup },
+            StartOrJoinView(standalone: (session.group.value ?? nil) != nil,
+                            onBack: {
+                                // Decided at tap time, not body time, so the
+                                // answer is always current. With a group —
+                                // "Start a new plan" from a finished one —
+                                // back means Home; without one it re-enters
+                                // the explainer on its last page.
+                                if (session.group.value ?? nil) != nil {
+                                    session.finishOnboarding()
+                                } else {
+                                    explainerStart = 3
+                                    step = .howItWorks
+                                }
+                            },
+                            onCreate: { newGroupName = ""; step = .buildGroup },
+                            onSameCrew: {
+                                newGroupName = session.group.value??.name ?? ""
+                                step = .buildGroup
+                            },
                             onJoined: {
                                 // Order matters: hold the flow open *before*
                                 // the group loads, or the router briefly
                                 // routes home and rebuilds this view with its
                                 // step reset. Then load, then advance.
                                 session.beginOnboardingTail()
-                                step = .notifications
-                                Task { await session.bootstrap() }
+                                if session.startingNewPlan {
+                                    Task {
+                                        await session.bootstrap()
+                                        session.finishOnboarding()
+                                    }
+                                } else {
+                                    step = .notifications
+                                    Task { await session.bootstrap() }
+                                }
                             })
 
         case .buildGroup:
-            BuildGroupView(onBack: { step = .startOrJoin },
+            BuildGroupView(initialName: newGroupName,
+                           onBack: { step = .startOrJoin },
                            onNext: { name, plan in step = .frequency(name: name, plan: plan) })
 
         case let .frequency(name, plan):
             FrequencyThresholdView(
                 onBack: { step = .buildGroup },
-                onNext: { frequency, customDays, threshold, moveOn in
+                onNext: { frequency, customDays, moveOn in
                     Task { await create(name: name, plan: plan,
                                         frequency: frequency,
                                         customDays: customDays,
-                                        threshold: threshold,
                                         moveOn: moveOn) }
                 })
 
@@ -155,7 +183,10 @@ struct OnboardingFlow: View {
                               onNext: { step = .share })
 
         case .share:
-            ShareInviteView(onHome: { step = .notifications })
+            ShareInviteView(onHome: {
+                if session.startingNewPlan { session.finishOnboarding() }
+                else { step = .notifications }
+            })
 
         case .notifications:
             EnableNotificationsView(onDone: { session.finishOnboarding() })
@@ -178,7 +209,7 @@ struct OnboardingFlow: View {
 
     private func create(name: String, plan: PlanChallenge,
                         frequency: Frequency, customDays: [Int]?,
-                        threshold: Int, moveOn: Int) async {
+                        moveOn: Int) async {
         guard !creating else { return }
         creating = true
         defer { creating = false }
@@ -189,7 +220,6 @@ struct OnboardingFlow: View {
                 frequency: frequency,
                 customDays: customDays,
                 timezone: TimeZone.current.identifier,
-                catchUpThresholdPct: threshold,
                 autoSkipAfterDays: moveOn)
             session.beginOnboardingTail()
             await session.bootstrap()

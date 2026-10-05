@@ -235,6 +235,21 @@ final class MockDwellAPI: DwellAPI {
                     content: "My mum does the same thing. Going to try this tonight.",
                     createdAt: .now.addingTimeInterval(-3_600))
         ]
+        // Replies on Maya's own reflection, the kind a reply push is about,
+        // so DWELL_PUSH_DEMO has one to scroll to and highlight.
+        if let mine = reflectionsStore.first(where: { $0.userId == Seed.maya.id && $0.dayInstanceId == today.id }) {
+            commentsStore += [
+                Comment(id: UUID(), reflectionId: mine.id, userId: Seed.priya.id,
+                        content: "The drift part. I felt that this week too.",
+                        createdAt: .now.addingTimeInterval(-7_200)),
+                Comment(id: UUID(), reflectionId: mine.id, userId: Seed.daniel.id,
+                        content: "Calling back instead of letting it sit is the whole thing.",
+                        createdAt: .now.addingTimeInterval(-5_400)),
+                Comment(id: UUID(), reflectionId: mine.id, userId: Seed.jordan.id,
+                        content: "Needed to read this today. Thank you for saying it plainly.",
+                        createdAt: .now.addingTimeInterval(-600))
+            ]
+        }
         reactionsStore = [
             Reaction(id: UUID(), reflectionId: priya.id, userId: Seed.jordan.id, emoji: "♡", createdAt: .now),
             Reaction(id: UUID(), reflectionId: priya.id, userId: Seed.daniel.id, emoji: "Amen", createdAt: .now)
@@ -360,6 +375,14 @@ final class MockDwellAPI: DwellAPI {
     func deleteAccount() async throws {
         try await tick()
         load(.signedOut)
+    }
+
+    func updateNotificationPrefs(_ prefs: [String: Bool]) async throws -> DwellUser {
+        try await tick()
+        guard var user = me else { throw DwellError.notAuthenticated }
+        user.notificationPrefs = prefs
+        me = user
+        return user
     }
 
     func clearPushToken() async throws {

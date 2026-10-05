@@ -371,6 +371,13 @@ final class SupabaseDwellAPI: DwellAPI {
             .single().execute().value
     }
 
+    func updateNotificationPrefs(_ prefs: [String: Bool]) async throws -> DwellUser {
+        let id = try await currentUserId()
+        let object = AnyJSON.object(prefs.mapValues { AnyJSON.bool($0) })
+        return try await client.from("users").update(["notification_prefs": object])
+            .eq("id", value: id).select().single().execute().value
+    }
+
     func clearPushToken() async throws {
         let id = try await currentUserId()
         try await client.from("users").update(["push_token": AnyJSON.null])

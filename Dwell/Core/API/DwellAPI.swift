@@ -26,6 +26,9 @@ protocol DwellAPI {
     /// switches accounts stops receiving the previous one's pushes.
     func clearPushToken() async throws
 
+    /// Writes the whole `notification_prefs` object on your own row.
+    func updateNotificationPrefs(_ prefs: [String: Bool]) async throws -> DwellUser
+
     /// POST /delete-account. Erases the account in the JWT — there is
     /// deliberately no way to name another user. Required by App Store
     /// guideline 5.1.1(v) for any app offering account creation.

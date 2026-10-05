@@ -108,7 +108,6 @@ struct SettingsView: View {
         }
     }
 
-    private static let notificationsKey = "settings.notifications"
     private static let findByPhoneKey = "settings.findByPhone"
     private static let contactSyncKey = "settings.contactSync"
 
@@ -117,10 +116,7 @@ struct SettingsView: View {
             ForEach(Array(notificationRows.enumerated()), id: \.offset) { index, row in
                 Toggle(isOn: Binding(
                     get: { notifications[row] ?? true },
-                    set: {
-                        notifications[row] = $0
-                        UserDefaults.standard.set(notifications, forKey: Self.notificationsKey)
-                    })) {
+                    set: { setNotification(row, $0) })) {
                     Text(row)
                         .font(.dwellBody)
                         .foregroundStyle(t.textPrimary)
@@ -421,13 +417,42 @@ struct SettingsView: View {
         return TimeZone(identifier: id)?.abbreviation() ?? id
     }
 
+    /// The backend's key for each switch (KAN-22). The server checks these
+    /// before sending, so a turned-off type stops arriving on the lock screen
+    /// too, not only in the app.
+    private static let prefKey: [String: String] = [
+        "Reminder nudges": "nudge",
+        "Friends' posts": "friends_posts",
+        "Comments, reactions, & mentions": "reply",
+        "Returning friends": "returning_friends",
+        "Streaks & memories": "streaks_memories",
+    ]
+
+    /// Flips the switch at once and writes the whole object; a failed write
+    /// puts it back and says so.
+    private func setNotification(_ row: String, _ on: Bool) {
+        let before = notifications
+        notifications[row] = on
+        let prefs = Dictionary(uniqueKeysWithValues: notificationRows.compactMap { name in
+            Self.prefKey[name].map { ($0, notifications[name] ?? true) }
+        })
+        Task {
+            do {
+                session.me = try await session.api.updateNotificationPrefs(prefs)
+            } catch {
+                notifications = before
+                toast = .failure("Couldn't save that. Try again.")
+            }
+        }
+    }
+
     private func seedToggles() {
         guard notifications.isEmpty else { return }
         // Restored rather than defaulted: these used to reset every time
         // Settings was rebuilt, so a choice never survived leaving the screen.
-        let stored = UserDefaults.standard.dictionary(forKey: Self.notificationsKey) as? [String: Bool]
+        let stored = session.me?.notificationPrefs ?? [:]
         notifications = Dictionary(uniqueKeysWithValues:
-            notificationRows.map { ($0, stored?[$0] ?? true) })
+            notificationRows.map { ($0, stored[Self.prefKey[$0] ?? ""] ?? true) })
         findByPhone = UserDefaults.standard.bool(forKey: Self.findByPhoneKey)
         contactSync = UserDefaults.standard.bool(forKey: Self.contactSyncKey)
     }

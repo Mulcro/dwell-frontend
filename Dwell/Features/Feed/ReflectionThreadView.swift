@@ -8,6 +8,8 @@ import PhotosUI
 struct ReflectionThreadView: View {
     let reflection: Reflection
     let authorName: String
+    /// The reply a push was about: scrolled to and briefly highlighted.
+    var highlightCommentId: UUID? = nil
     var onClose: () -> Void = {}
 
     @Environment(SessionStore.self) private var session
@@ -26,6 +28,7 @@ struct ReflectionThreadView: View {
     @State private var speech: SpeechRecognizer?
     @State private var captureToken = UUID()
     @State private var toast: Toast?
+    @State private var flashing: UUID?
     @FocusState private var writing: Bool
 
     private var isMine: Bool { reflection.userId == session.me?.id }
@@ -56,6 +59,7 @@ struct ReflectionThreadView: View {
             VStack(spacing: 0) {
                 header
 
+                ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: Space.xl) {
                         ReflectionCard(reflection: reflection,
@@ -74,6 +78,10 @@ struct ReflectionThreadView: View {
                     .padding(.bottom, Space.xl)
                 }
                 .scrollIndicators(.hidden)
+                .onChange(of: comments.value?.count) { _, _ in
+                    scrollToHighlight(proxy)
+                }
+                }
                 // Dismissal lives on the scroll content, not the whole
                 // screen, so a tap inside the reply field to move the cursor
                 // doesn't close the keyboard out from under it.
@@ -159,6 +167,34 @@ struct ReflectionThreadView: View {
                     .foregroundStyle(t.textPrimary)
 
                 ForEach(list) { comment in
+                    commentRow(comment)
+                        .id(comment.id)
+                        .padding(Space.sm)
+                        .background(
+                            RoundedRectangle(cornerRadius: Radius.md, style: .continuous)
+                                .fill(t.accent.opacity(flashing == comment.id ? 0.14 : 0))
+                        )
+                        .padding(-Space.sm)
+                }
+            }
+        }
+    }
+
+    /// Brings the pushed reply into view and lights it for a moment, so it's
+    /// clear which one the notification meant. Falls back to the top when
+    /// the reply isn't there (deleted, or not loaded).
+    private func scrollToHighlight(_ proxy: ScrollViewProxy) {
+        guard let target = highlightCommentId,
+              comments.value?.contains(where: { $0.id == target }) == true else { return }
+        withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(target, anchor: .center) }
+        withAnimation(.easeIn(duration: 0.2)) { flashing = target }
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            withAnimation(.easeOut(duration: 0.6)) { flashing = nil }
+        }
+    }
+
+    private func commentRow(_ comment: Comment) -> some View {
                     HStack(alignment: .top, spacing: Space.md) {
                         PhotoAvatar(name: session.memberProfiles[comment.userId]?.name ?? "Member",
                                     url: session.avatarURL(for: comment.userId),
@@ -188,9 +224,6 @@ struct ReflectionThreadView: View {
                         }
                         Spacer(minLength: 0)
                     }
-                }
-            }
-        }
     }
 
     private var composer: some View {

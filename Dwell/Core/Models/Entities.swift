@@ -20,11 +20,15 @@ struct DwellUser: Identifiable, Codable, Hashable {
     /// whatever the identity provider happened to have, and nothing checked it.
     var avatarPath: String?
     var createdAt: Date
+    /// Per-type push switches (KAN-22), checked by send-push before every
+    /// push. A missing key is on.
+    var notificationPrefs: [String: Bool]?
 
     enum CodingKeys: String, CodingKey {
         case id, name, timezone
         case preferredLanguage = "preferred_language"
         case pushToken = "push_token"
+        case notificationPrefs = "notification_prefs"
         case avatarUrl = "avatar_url"
         case avatarPath = "avatar_path"
         case createdAt = "created_at"

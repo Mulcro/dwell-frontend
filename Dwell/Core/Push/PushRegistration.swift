@@ -1,6 +1,22 @@
 import UIKit
 import UserNotifications
 
+/// What a tapped reply push asks the app to open (KAN-22 payload).
+struct PushRoute: Equatable {
+    let groupId: UUID
+    let reflectionId: UUID
+    let commentId: UUID?
+}
+
+/// Holds a tapped push until the app can act on it. On a cold start the tap
+/// arrives before anyone is signed in or the group has loaded, so RootView
+/// picks it up once Home is showing.
+@MainActor @Observable
+final class PushInbox {
+    static let shared = PushInbox()
+    var pending: PushRoute?
+}
+
 extension Notification.Name {
     /// Posted with the device's APNs token as a hex string in `object`.
     static let dwellPushToken = Notification.Name("dwellPushToken")
@@ -25,6 +41,21 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func application(_ application: UIApplication,
                      didFailToRegisterForRemoteNotificationsWithError error: Error) {
         print("Push registration failed: \(error.localizedDescription)")
+    }
+
+    /// A tap on a reply push. Other types (the nudge) just open the app.
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse) async {
+        let info = response.notification.request.content.userInfo
+        guard info["type"] as? String == "reply",
+              let group = (info["group_id"] as? String).flatMap(UUID.init(uuidString:)),
+              let reflection = (info["reflection_id"] as? String).flatMap(UUID.init(uuidString:))
+        else { return }
+        let comment = (info["comment_id"] as? String).flatMap(UUID.init(uuidString:))
+        await MainActor.run {
+            PushInbox.shared.pending = PushRoute(groupId: group, reflectionId: reflection,
+                                                 commentId: comment)
+        }
     }
 
     /// A nudge that lands while Dwell is open still shows, rather than being

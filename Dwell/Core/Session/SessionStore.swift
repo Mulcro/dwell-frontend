@@ -369,6 +369,17 @@ final class SessionStore {
         if self.me?.id == owner { self.me = updated }
     }
 
+    /// The reflection a tapped reply push is about. Nil when the push is for
+    /// a group this account isn't in, which happens after the phone switched
+    /// accounts; the app then just opens. A reply is always on your own
+    /// reflection, so it's among yours, possibly after a reload.
+    func reflectionForPush(_ route: PushRoute) async -> Reflection? {
+        guard group.value??.id == route.groupId else { return nil }
+        if let found = myReflections.first(where: { $0.id == route.reflectionId }) { return found }
+        await reload()
+        return myReflections.first { $0.id == route.reflectionId }
+    }
+
     /// Releases this phone's push token from the account first, so its pushes
     /// stop reaching whoever uses the phone next. The token stays in memory
     /// for the next account to claim. Best effort: signing out never waits

@@ -208,6 +208,12 @@ final class MockDwellAPI: DwellAPI {
             sentimentTag: status == .approved ? "hopeful" : nil,
             moderationStatus: status,
             isLate: false,
+            // A short recording, so the card's player row (waveform beside
+            // the duration) renders in mock screenshots.
+            mediaPath: voice ? "mock/jordan.m4a" : nil,
+            mediaMime: voice ? "audio/mp4" : nil,
+            mediaDurationSeconds: voice ? 3 : nil,
+            mediaPeaks: voice ? (0..<34).map { 20 + ($0 * 37) % 80 } : nil,
             createdAt: day.openedAt.addingTimeInterval(3_600 * 2),
             aiResponse: status == .approved ? (Self.aiResponses[user.id] ?? nil) : nil)
     }

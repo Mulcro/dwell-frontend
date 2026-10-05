@@ -110,6 +110,7 @@ struct ReflectionCard: View {
                     Text(SpeechRecognizer.durationLabel(TimeInterval(seconds)))
                         .font(.dwellSmall)
                         .foregroundStyle(t.textSecondary)
+                        .fixedSize()
                 }
             }
             .onDisappear { player.tearDown() }

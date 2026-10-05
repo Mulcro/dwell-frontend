@@ -304,6 +304,7 @@ struct ReflectionThreadView: View {
                         .font(.dwellCaption)
                         .foregroundStyle(t.textSecondary)
                         .monospacedDigit()
+                        .fixedSize()
                 case .photo:
                     if let photoPreview {
                         Image(uiImage: photoPreview)

@@ -1,8 +1,32 @@
 # Dwell — iOS client
 
-SwiftUI client for **Dwell** (GLOO Hackathon 2026, team SEYI): friends commit
-to a shared Bible plan, the day stays sealed until enough of the group posts,
-and an AI companion stays present throughout.
+**Dwell is a daily Bible-reading app for small groups of friends.** Two to seven
+people pick a reading plan, read the same passage each day, and post a short
+reflection in text, voice or a photo. The day is **sealed**: you can't read
+anyone's reflection until you've posted your own and half the group has posted.
+Then it unlocks for everyone at once, and an AI companion called Eagle reflects
+back what the group noticed together.
+
+This repository is the **SwiftUI iOS client** (GLOO Hackathon 2026, team SEYI).
+The backend, including the full AI pipeline, is
+[Mulcro/dwell-backend](https://github.com/Mulcro/dwell-backend).
+
+## What you see AI do in the app
+
+- **Eagle's reply** under each of your reflections, in your language (Feed).
+- **Translation**: reflections, replies and AI cards appear in each reader's
+  language, with "Translated from" and a way back to the original.
+- **Group Pulse**: once a day unlocks, a headline about what the group noticed,
+  and each member's stated intention (Home, Pulse).
+- **Weekly and end-of-challenge recaps**: the thread the group kept coming
+  back to, and a line on what each person brought (Recap).
+- **Nudges** when you're falling behind, in-app.
+- **On-device transcription** of voice reflections with Apple Speech
+  (`Core/Speech/SpeechRecognizer.swift`), so audio never needs a server model.
+- **Moderation** runs before anything you post reaches anyone else.
+
+The backend README has the full map of models and design choices:
+[How Dwell uses AI](https://github.com/Mulcro/dwell-backend#how-dwell-uses-ai).
 
 Built against the [Client API Contract], [MVP Spec] and [Backend Design Doc]
 in Notion. Visual language comes from the SEYI Figma file, page "Define".
@@ -57,20 +81,28 @@ Dwell/
     API/
       DwellAPI.swift          the whole backend surface, one protocol
       MockDwellAPI.swift      in-memory; 15 scenarios; enforces the real rules
-      SupabaseDwellAPI.swift  stub — every method annotated with its route
-      Seed.swift              Anchored 7-day plan, matching plan_days exactly
+      SupabaseDwellAPI.swift  the live backend, on supabase-swift 2.55.2
+      Seed.swift              plan fixtures for the mock
     Session/
       SessionStore            auth + group + day + my reflection
       Router                  challenge_status × day_status × my post → screen
       Loadable                idle / loading / loaded / failed
   Features/
-    Onboarding/   the redesigned flow, 12 screens
-    Home/         placeholder until the daily loop is redesigned
+    Onboarding/   sign-in, create or join, plan picker, rhythm
+    Home/         today's state: sealed, unlocked, finished, What's Next
+    Reading/      the day's passage from YouVersion
+    Reflect/      compose text, voice (with transcription) or photo
+    Feed/         the unlocked day: reflections, Eagle, replies, reactions
+    Pulse/        the Group Pulse card
+    Recap/        weekly and end-of-challenge recaps, archived challenges
+    Memories/     calendar and timeline of your reflections
+    Stalled/      continue, pause or end a quiet challenge
+    Profile/      account, picture, language, delete account
 ```
 
-`Archive/LegacyUI/` holds the previous daily-loop build — complete and wired
-to the API layer, in the superseded dark design language. It comes back
-screen by screen as the new comps land.
+`Archive/LegacyUI/` is **not part of the app target** (only `Dwell/` is
+compiled). It is the pre-redesign build, kept as a reference while screens were
+ported to the new design.
 
 ### The API boundary
 
@@ -78,8 +110,8 @@ screen by screen as the new comps land.
 Edge Functions as async methods, the 8 PostgREST tables as typed reads/writes,
 the 2 realtime channels as `AsyncStream`s, plus the mock PlanService and
 passage fetch. Models decode straight off PostgREST (`CodingKeys` carry the
-real column names), so going live means filling in `SupabaseDwellAPI` and
-changing one line in `DwellApp.swift`. No screen knows which backend it has.
+real column names). `SupabaseDwellAPI` is the live implementation and
+`MockDwellAPI` the offline one; no screen knows which backend it has.
 
 `MockDwellAPI` enforces the rules that matter to the UI rather than just
 returning fixtures — the reflection lock, threshold math against members who
@@ -127,16 +159,17 @@ the app to light rather than rendering an undesigned dark palette.
 
 ## Content
 
-Seeded with the redesign's plans — **When Life Gets Hard** and **The Psalms: A
-Roadmap to Resilience**, both 7 days. These differ from the backend's seeded
-"Anchored" plan; see FOR-BACKEND.md.
+The picker shows the three plans the design defines: **Be Still** (3 days),
+**Better Together** (7) and **Abide** (14), each with a description, key
+verse, titled days and cover art. Passage text comes from the YouVersion
+Platform (Berean Standard Bible) through the backend.
 
 ## Contract conformance
 
 Aligned to the Client API Contract (2026-09-24):
 
-- `frequency` (`daily` / `weekdays` / `three_per_week`) is a live control
-  again — the MVP Spec's daily-only note is superseded.
+- `frequency` (`daily` / `weekdays` / `four_per_week` / `three_per_week` /
+  `custom` with chosen weekdays) is a live control.
 - `create-group` sends `timezone`; omitting it silently gives the group UTC
   and breaks weekday/MWF day math.
 - The user's own row is PATCHed on first sight of the `'UTC'`/`'en'`
@@ -151,19 +184,10 @@ Aligned to the Client API Contract (2026-09-24):
 
 ## Known gaps
 
-- **[FOR-BACKEND.md](FOR-BACKEND.md)** — open questions and blockers, including
-  three new conflicts the redesign introduced (email/password auth, frequency
-  values, plan catalogue).
-- **[DESIGN-GAPS.md](DESIGN-GAPS.md)** — what the redesign covers, what's still
-  in the old language, and the open design questions.
-- **[INTERACTION-GAPS.md](INTERACTION-GAPS.md)** — feel and mechanics; what's
-  deferred (Dynamic Type, VoiceOver, localization).
+- Dynamic Type, VoiceOver and full localization of the UI chrome are deferred.
 - **Inter** isn't bundled — body text falls back to the system face. Drop the
   files into `Dwell/Fonts` and add `UIAppFonts`. SF Pro *is* the system face,
   so headlines and buttons are already correct.
-- **The real backend is wired.** `SupabaseDwellAPI` is implemented against
-  `supabase-swift` 2.55.2 and verified live. The mock remains for offline work
-  and for driving states the seed doesn't cover.
 
 [Client API Contract]: https://app.notion.com/p/3e5d36984c6e81faaecad797886ff45d
 [MVP Spec]: https://app.notion.com/p/3d1d36984c6e81c9bf88d4555ed223ce

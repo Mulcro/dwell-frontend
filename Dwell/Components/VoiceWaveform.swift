@@ -10,6 +10,9 @@ struct VoiceWaveform: View {
     var barCount: Int = 34
     var height: CGFloat = 44
     var tint: Color?
+    /// A trace still being recorded: right-aligned, newest sample last. A
+    /// saved recording is instead sampled across its whole length.
+    var live: Bool = false
     @Environment(\.dwell) private var t
 
     /// 3pt bars on a 6pt pitch.
@@ -37,6 +40,14 @@ struct VoiceWaveform: View {
     }
 
     private func value(at index: Int, of count: Int) -> CGFloat {
+        // A saved recording with more peaks than bars: each bar takes the
+        // loudest peak in its share, so a narrow card still shows the whole
+        // recording rather than only its end.
+        if !live, levels.count > count {
+            let start = index * levels.count / count
+            let end = max(start + 1, (index + 1) * levels.count / count)
+            return levels[start..<min(end, levels.count)].max() ?? 0.12
+        }
         if !levels.isEmpty {
             // Right-align the live trace so the newest sample is at the end.
             let offset = levels.count - count

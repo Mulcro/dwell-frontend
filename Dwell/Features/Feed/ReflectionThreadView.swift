@@ -337,7 +337,7 @@ struct ReflectionThreadView: View {
         HStack(spacing: Space.md) {
             Circle().fill(t.danger).frame(width: 8, height: 8)
             VoiceWaveform(levels: speech?.levels ?? [], barCount: 28, height: 22,
-                          tint: t.accent)
+                          tint: t.accent, live: true)
             Text(SpeechRecognizer.durationLabel(speech?.remaining ?? 0) + " left")
                 .font(.dwellCaption)
                 .foregroundStyle(t.textSecondary)

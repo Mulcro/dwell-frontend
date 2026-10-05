@@ -694,7 +694,13 @@ final class MockDwellAPI: DwellAPI {
 
     func planImageURL(path: String) -> URL? { nil }
 
+    /// Mock recordings play a short bundled clip, so a mock voice card's
+    /// play button works in screenshots and demos.
     func mediaURL(path: String) async throws -> URL {
+        if path.hasPrefix("mock/"),
+           let clip = Bundle.main.url(forResource: "mock-voice", withExtension: "m4a") {
+            return clip
+        }
         throw DwellError.notFound("Media")
     }
 

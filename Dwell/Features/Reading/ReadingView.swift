@@ -13,7 +13,6 @@ struct ReadingView: View {
     @State private var planDays: Loadable<[PlanDay]> = .idle
     @State private var selectedIndex: Int?
     @State private var reading: ReadingItem?
-    @State private var openRecap: AIInsight?
 
     private var plan: PlanChallenge? { session.plan }
 
@@ -57,19 +56,17 @@ struct ReadingView: View {
         .fullScreenCover(item: $reading) { item in
             ReadingPager(item: item, onClose: { reading = nil })
         }
-        .fullScreenCover(item: $openRecap) { recap in
-            RecapView(insight: recap, onClose: { openRecap = nil })
-        }
     }
 
     // MARK: - Finished (KAN-35)
 
     /// Once the plan is over, the readings close until the next plan starts,
-    /// rather than offering "Start Reading" on a plan with nothing left.
+    /// rather than offering "Start Reading" on a plan with nothing left. No
+    /// buttons: the recap and Start a new plan already live on Home, so this
+    /// points there instead of repeating them.
     private var finished: some View {
-        let ended = session.group.value??.challengeStatus.isEnded ?? false
-        return ScrollView {
-            VStack(spacing: Space.lg) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.lg) {
                 PlanCover(title: plan?.title ?? "", imageURL: planArt)
                     .frame(height: 200)
                     .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
@@ -82,29 +79,17 @@ struct ReadingView: View {
                 Text(finishedTitle)
                     .font(.dwellTitle)
                     .foregroundStyle(t.textPrimary)
-                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(finishedDetail)
                     .font(.dwellBody)
                     .foregroundStyle(t.textSecondary)
-                    .multilineTextAlignment(.center)
                     .lineSpacing(LineSpacing.small)
                     .fixedSize(horizontal: false, vertical: true)
-
-                if let recap = session.endRecap {
-                    PrimaryButton(title: "Look back on it", accent: true) { openRecap = recap }
-                        .padding(.top, Space.md)
-                }
-                // Only once it has ended: while the group is still active the
-                // backend refuses a new group ("still going").
-                if ended {
-                    SecondaryButton(title: "Start a new plan", bordered: true) {
-                        session.startNewPlan()
-                    }
-                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Space.gutter)
+            .padding(.top, Space.lg)
             .padding(.bottom, TabBarMetrics.clearance)
         }
         .scrollIndicators(.hidden)
@@ -125,9 +110,9 @@ struct ReadingView: View {
     private var finishedDetail: String {
         switch session.group.value??.challengeStatus {
         case .completed:
-            return "Every day of this plan is behind you. The readings open again with your next plan."
+            return "Every day of this plan is behind you. Head to Home to look back on it, or to start something new."
         case .abandoned, .expiredIncomplete:
-            return "Its readings are closed. Start a new plan to keep reading together."
+            return "Its readings are closed. Head to Home to start something new together."
         default:
             return "You've posted on the final day. Your group's recap arrives once the challenge closes, within a day."
         }
@@ -163,6 +148,7 @@ struct ReadingView: View {
                 PlanCover(title: plan?.title ?? "", imageURL: planArt)
                     .frame(height: 200)
                     .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
+                    .padding(.top, Space.lg)
 
                 daySelector(days: days, selected: index)
 

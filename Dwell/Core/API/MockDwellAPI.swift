@@ -268,7 +268,9 @@ final class MockDwellAPI: DwellAPI {
                 createdAt: .now))
         }
 
-        if scenario == .nudgeWaiting || scenario == .dayOpenNotPosted {
+        // postedBelow carries a nudge written before Maya posted, the KAN-45
+        // case: the row exists, and Home must not show it.
+        if scenario == .nudgeWaiting || scenario == .dayOpenNotPosted || scenario == .postedBelow {
             insightsStore.append(AIInsight(
                 id: UUID(), groupId: Seed.groupId, dayInstanceId: today.id, targetUserId: Seed.maya.id,
                 scope: .dayInstance, type: .nudge,

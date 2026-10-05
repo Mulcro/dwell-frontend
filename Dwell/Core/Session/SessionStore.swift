@@ -149,7 +149,8 @@ final class SessionStore {
     /// The nudge to show on Home, real or previewed.
     var visibleNudge: AIInsight? {
         #if DEBUG
-        if previewNudge, pendingNudge == nil, let g = group.value ?? nil {
+        if previewNudge, let g = group.value ?? nil,
+           pendingNudge.map(nudgeStillApplies) != true {
             return AIInsight(
                 id: UUID(), groupId: g.id, dayInstanceId: currentDay?.id,
                 targetUserId: me?.id, scope: .dayInstance, type: .nudge,
@@ -158,8 +159,36 @@ final class SessionStore {
                 createdAt: .now)
         }
         #endif
-        return pendingNudge
+        guard let nudge = pendingNudge, nudgeStillApplies(nudge) else { return nil }
+        return nudge
     }
+
+    /// The cron writes a nudge in the last hours of a member's window and the
+    /// row stays, so one written before you posted kept showing after. A
+    /// nudge only applies while it's addressed to you, about the day that's
+    /// open, in a challenge still running, and you haven't posted on that
+    /// day. Computed, so posting hides a banner already on screen.
+    private func nudgeStillApplies(_ nudge: AIInsight) -> Bool {
+        guard nudge.targetUserId == me?.id else { return false }
+        if let g = group.value ?? nil, g.challengeStatus.isEnded { return false }
+        guard let day = nudge.dayInstanceId ?? currentDay?.id,
+              day == currentDay?.id else { return false }
+        return !hasPosted(on: day)
+    }
+
+    private func hasPosted(on dayId: UUID) -> Bool {
+        if postedDayIds.contains(dayId) { return true }
+        if let mine = myReflection, mine.dayInstanceId == dayId,
+           mine.moderationStatus == .approved { return true }
+        return myReflections.contains {
+            $0.dayInstanceId == dayId && $0.moderationStatus == .approved
+        }
+    }
+
+    /// Days you posted an approved reflection on in this session, from the
+    /// submit response itself, so the nudge clears even if the reload after
+    /// posting fails.
+    private var postedDayIds: Set<UUID> = []
 
     /// Set when a create/join flow is in progress, so the router can show it.
     var entryFlow: EntryFlow?
@@ -553,6 +582,7 @@ final class SessionStore {
         days = []
         myReflection = nil
         pendingNudge = nil
+        postedDayIds = []
         inactivityPrompt = nil
         groupPulse = nil
         endRecap = nil
@@ -602,6 +632,7 @@ final class SessionStore {
         days = []
         myReflection = nil
         pendingNudge = nil
+        postedDayIds = []
         inactivityPrompt = nil
         groupPulse = nil
         endRecap = nil
@@ -615,7 +646,7 @@ final class SessionStore {
                           body: String,
                           attachment: MediaAttachment? = nil) async throws {
         guard let day = currentDay else { throw DwellError.notFound("Today") }
-        _ = try await api.submitReflection(
+        let response = try await api.submitReflection(
             dayInstanceId: day.id,
             mediaType: mediaType,
             // A photo's caption is `content`, like a text reflection; only
@@ -627,6 +658,7 @@ final class SessionStore {
             language: LanguageDetect.dominant(of: body,
                                               fallback: me?.preferredLanguage ?? "en"),
             attachment: attachment)
+        if response.moderationStatus == .approved { postedDayIds.insert(day.id) }
         await reload()
     }
 

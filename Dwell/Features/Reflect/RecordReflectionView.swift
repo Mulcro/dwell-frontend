@@ -122,7 +122,8 @@ struct RecordReflectionView: View {
             VoiceWaveform(levels: isRecording ? (speech?.levels ?? []) : draft.levels,
                           seed: 4,
                           height: 56,
-                          tint: isRecording ? t.danger : nil)
+                          tint: isRecording ? t.danger : nil,
+                          live: isRecording)
 
             if !liveText.isEmpty || isRecording {
                 Text(liveText.isEmpty ? "Listening…" : liveText)

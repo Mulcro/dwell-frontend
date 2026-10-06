@@ -94,6 +94,7 @@ struct MemoryDetailView: View {
                 .font(.dwellCaption)
                 .foregroundStyle(t.textSecondary)
                 .monospacedDigit()
+                .fixedSize()
         }
         .padding(Space.md)
         .background(t.surfaceRaised)

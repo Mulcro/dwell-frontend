@@ -10,25 +10,47 @@ struct VoiceWaveform: View {
     var barCount: Int = 34
     var height: CGFloat = 44
     var tint: Color?
+    /// A trace still being recorded: right-aligned, newest sample last. A
+    /// saved recording is instead sampled across its whole length.
+    var live: Bool = false
     @Environment(\.dwell) private var t
 
+    /// 3pt bars on a 6pt pitch.
+    private static let pitch: CGFloat = 6
+
+    /// Draws as many bars as fit, up to `barCount`. A fixed row of bars can't
+    /// shrink, so on a narrow card it took the whole width and squeezed the
+    /// duration beside it into one character per line.
     var body: some View {
-        HStack(alignment: .center, spacing: 3) {
-            ForEach(0..<barCount, id: \.self) { index in
-                Capsule()
-                    .fill(tint ?? t.border)
-                    .frame(width: 3, height: max(height * value(at: index), 4))
+        GeometryReader { geo in
+            let count = max(1, min(barCount, Int((geo.size.width + 3) / Self.pitch)))
+            HStack(alignment: .center, spacing: 3) {
+                ForEach(0..<count, id: \.self) { index in
+                    Capsule()
+                        .fill(tint ?? t.border)
+                        .frame(width: 3, height: max(height * value(at: index, of: count), 4))
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: CGFloat(barCount) * Self.pitch - 3)
         .frame(height: height)
         .animation(.easeOut(duration: 0.12), value: levels.count)
         .accessibilityHidden(true)
     }
 
-    private func value(at index: Int) -> CGFloat {
+    private func value(at index: Int, of count: Int) -> CGFloat {
+        // A saved recording with more peaks than bars: each bar takes the
+        // loudest peak in its share, so a narrow card still shows the whole
+        // recording rather than only its end.
+        if !live, levels.count > count {
+            let start = index * levels.count / count
+            let end = max(start + 1, (index + 1) * levels.count / count)
+            return levels[start..<min(end, levels.count)].max() ?? 0.12
+        }
         if !levels.isEmpty {
             // Right-align the live trace so the newest sample is at the end.
-            let offset = levels.count - barCount
+            let offset = levels.count - count
             let i = index + offset
             return i >= 0 && i < levels.count ? levels[i] : 0.12
         }

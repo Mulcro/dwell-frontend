@@ -148,6 +148,7 @@ struct ReviewReflectionView: View {
                     Text(SpeechRecognizer.durationLabel(draft.duration))
                         .font(.dwellSmall)
                         .foregroundStyle(t.textSecondary)
+                        .fixedSize()
                 }
             }
         }

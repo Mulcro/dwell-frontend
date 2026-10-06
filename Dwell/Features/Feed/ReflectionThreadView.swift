@@ -121,13 +121,8 @@ struct ReflectionThreadView: View {
                 withAnimation(.easeInOut(duration: 0.2)) { showCompanion.toggle() }
             } label: {
                 HStack(spacing: Space.md) {
-                    ZStack {
-                        Circle().fill(t.accent.opacity(0.15))
-                        Image(systemName: "sparkle")
-                            .font(.system(size: 15))
-                            .foregroundStyle(t.accent)
-                    }
-                    .frame(width: 32, height: 32)
+                    // Active until the reply is opened.
+                    EagleAvatar(mood: showCompanion ? .resting : .active, size: 36)
 
                     Text("Eagle replied to \(isMine ? "you" : authorName)")
                         .font(.dwellBodyMd)

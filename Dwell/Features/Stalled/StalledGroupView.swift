@@ -17,15 +17,7 @@ struct StalledGroupView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.xl) {
-                    // Eagle's mark, matching the companion treatment the
-                    // thread already uses.
-                    ZStack {
-                        Circle().fill(t.accent.opacity(0.15))
-                        Image(systemName: "sparkle")
-                            .font(.system(size: 24))
-                            .foregroundStyle(t.accent)
-                    }
-                    .frame(width: 56, height: 56)
+                    EagleAvatar(size: 56)
 
                     VStack(alignment: .leading, spacing: Space.lg) {
                         Text(title)

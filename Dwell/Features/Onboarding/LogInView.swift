@@ -47,9 +47,8 @@ struct LogInView: View {
                     Text(error).font(.dwellCaption).foregroundStyle(t.danger)
                 }
 
-                PrimaryButton(title: "Continue", enabled: canContinue, loading: working, accent: true) {
-                    Task { await submit() }
-                }
+                PrimaryButton(title: "Continue", enabled: canContinue, loading: working, accent: true,
+                              perform: submit)
 
                 HStack(spacing: Space.md) {
                     Rectangle().fill(t.border).frame(height: 1)
@@ -57,9 +56,8 @@ struct LogInView: View {
                     Rectangle().fill(t.border).frame(height: 1)
                 }
 
-                PrimaryButton(title: "Continue with YouVersion", image: "YouVersionLogo") {
-                    Task { await youVersion() }
-                }
+                PrimaryButton(title: "Continue with YouVersion", image: "YouVersionLogo",
+                              perform: youVersion)
 
                 SocialButtonRow(onSignedIn: onDone,
                                 onError: { message in

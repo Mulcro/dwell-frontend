@@ -58,9 +58,8 @@ struct StartOrJoinView: View {
                 if !standalone || preview != nil {
                     PrimaryButton(title: joining ? "Joining…" : "Continue",
                                   enabled: preview != nil,
-                                  loading: joining) {
-                        Task { await join() }
-                    }
+                                  loading: joining,
+                                  perform: join)
                     .padding(.top, standalone ? Space.md : 0)
                 }
             }

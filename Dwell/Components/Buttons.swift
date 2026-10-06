@@ -18,16 +18,30 @@ struct PrimaryButton: View {
     /// title, as on "Continue with YouVersion".
     var image: String? = nil
     var action: () -> Void = {}
+    /// For work that calls the backend. The button is busy from the moment
+    /// of the tap until this returns, so a quick second tap can't send the
+    /// request twice. A screen's own flag, set inside its async work, comes
+    /// too late: the Task hasn't started when the second tap arrives.
+    var perform: (@MainActor () async -> Void)? = nil
     @Environment(\.dwell) private var t
+    @State private var busy = false
 
     var body: some View {
         Button {
-            guard enabled, !loading else { return }
+            guard enabled, !loading, !busy else { return }
             Haptics.tap()
-            action()
+            if let perform {
+                busy = true
+                Task {
+                    await perform()
+                    busy = false
+                }
+            } else {
+                action()
+            }
         } label: {
             HStack(spacing: Space.sm) {
-                if loading {
+                if loading || busy {
                     ProgressView().tint(t.onInk)
                 } else if let image {
                     BrandMark(name: image)
@@ -44,7 +58,7 @@ struct PrimaryButton: View {
             .clipShape(Capsule())
         }
         .buttonStyle(PressScale())
-        .disabled(!enabled || loading)
+        .disabled(!enabled || loading || busy)
     }
 }
 
@@ -58,15 +72,31 @@ struct SecondaryButton: View {
     /// A brand mark drawn before the title, as on "Continue with Google".
     var image: String? = nil
     var action: () -> Void = {}
+    /// Async work, busy from the tap until it returns. See PrimaryButton.
+    var perform: (@MainActor () async -> Void)? = nil
     @Environment(\.dwell) private var t
+    @State private var busy = false
 
     var body: some View {
         Button {
+            guard !busy else { return }
             Haptics.tap()
-            action()
+            if let perform {
+                busy = true
+                Task {
+                    await perform()
+                    busy = false
+                }
+            } else {
+                action()
+            }
         } label: {
             HStack(spacing: Space.sm) {
-                if let image { BrandMark(name: image) }
+                if busy {
+                    ProgressView().tint(t.textPrimary)
+                } else if let image {
+                    BrandMark(name: image)
+                }
                 Text(title).font(.dwellButton)
             }
                 .frame(maxWidth: .infinity)
@@ -81,6 +111,31 @@ struct SecondaryButton: View {
                 }
         }
         .buttonStyle(PressScale())
+        .disabled(busy)
+    }
+}
+
+/// A plain Button for work that calls the backend: taps are ignored until
+/// the last one's work has finished. The label is the caller's, so a
+/// screen's own flag still drives any spinner.
+struct AsyncButton<Label: View>: View {
+    var role: ButtonRole? = nil
+    let action: @MainActor () async -> Void
+    @ViewBuilder let label: () -> Label
+    @State private var busy = false
+
+    var body: some View {
+        Button(role: role) {
+            guard !busy else { return }
+            busy = true
+            Task {
+                await action()
+                busy = false
+            }
+        } label: {
+            label()
+        }
+        .disabled(busy)
     }
 }
 

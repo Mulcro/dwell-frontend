@@ -7,7 +7,9 @@ import SwiftUI
 /// group, so the screen states the rule instead of offering a control.
 struct FrequencyThresholdView: View {
     var onBack: () -> Void = {}
-    var onNext: (Frequency, [Int]?, Int) -> Void = { _, _, _ in }
+    /// Async so the Continue button stays busy until the group exists: a
+    /// second tap while it's being created would make a second group.
+    var onNext: @MainActor (Frequency, [Int]?, Int) async -> Void = { _, _, _ in }
 
     @Environment(\.dwell) private var t
     @State private var frequency: Frequency = .fourPerWeek
@@ -93,9 +95,9 @@ struct FrequencyThresholdView: View {
 
                 PrimaryButton(title: "Continue",
                               enabled: frequency != .custom || !customDays.isEmpty) {
-                    onNext(frequency,
-                           frequency == .custom ? customDays.sorted() : nil,
-                           moveOnAfter)
+                    await onNext(frequency,
+                                 frequency == .custom ? customDays.sorted() : nil,
+                                 moveOnAfter)
                 }
             }
             .padding(.horizontal, Space.gutter)

@@ -20,13 +20,13 @@ struct ProviderButtons: View {
             PrimaryButton(title: working == .youversion ? "Opening YouVersion…" : "Continue with YouVersion",
                           loading: working == .youversion,
                           image: "YouVersionLogo") {
-                Task { await signIn(.youversion) }
+                await signIn(.youversion)
             }
 
             SecondaryButton(title: working == .google ? "Opening Google…" : "Continue with Google",
                             bordered: true,
                             image: "GoogleLogo") {
-                Task { await signIn(.google) }
+                await signIn(.google)
             }
         }
     }

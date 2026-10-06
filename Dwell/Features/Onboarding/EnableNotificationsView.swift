@@ -39,9 +39,7 @@ struct EnableNotificationsView: View {
                     .padding(.top, Space.md)
                     .padding(.bottom, Space.xxl)
 
-                PrimaryButton(title: "Turn on notifications", loading: asking) {
-                    Task { await request() }
-                }
+                PrimaryButton(title: "Turn on notifications", loading: asking, perform: request)
                 SecondaryButton(title: "Another time", action: onDone)
                     .padding(.top, Space.xs)
             }

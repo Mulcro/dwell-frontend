@@ -75,9 +75,7 @@ struct YouVersionSignInView: View {
                         .padding(.bottom, Space.sm)
                 }
 
-                PrimaryButton(title: "Sign in with YouVersion", loading: working) {
-                    Task { await signIn() }
-                }
+                PrimaryButton(title: "Sign in with YouVersion", loading: working, perform: signIn)
             }
             .padding(.horizontal, Space.gutter)
             .padding(.bottom, Space.xl)

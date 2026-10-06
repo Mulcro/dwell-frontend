@@ -266,7 +266,13 @@ struct ReflectionThreadView: View {
                 }
 
                 if canSend {
-                    Button { Task { await send() } } label: {
+                    Button {
+                        // Set here, not inside send(): by the time its Task
+                        // runs, a quick second tap could already be queued.
+                        guard !sending else { return }
+                        sending = true
+                        Task { await send() }
+                    } label: {
                         if sending {
                             LoadingDots(color: t.accent)
                                 .frame(width: 30, height: 30)
@@ -447,11 +453,11 @@ struct ReflectionThreadView: View {
         catch { comments = .failed(error.localizedDescription) }
     }
 
+    /// The send button sets `sending` before calling this.
     private func send() async {
+        defer { sending = false }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard canSend else { return }
-        sending = true
-        defer { sending = false }
         if attachment != nil { toast = .working("Sending…") }
         do {
             try await session.api.addComment(

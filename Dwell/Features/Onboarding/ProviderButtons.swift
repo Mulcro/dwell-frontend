@@ -18,12 +18,14 @@ struct ProviderButtons: View {
     var body: some View {
         VStack(spacing: Space.sm) {
             PrimaryButton(title: working == .youversion ? "Opening YouVersion…" : "Continue with YouVersion",
-                          loading: working == .youversion) {
+                          loading: working == .youversion,
+                          image: "YouVersionLogo") {
                 Task { await signIn(.youversion) }
             }
 
             SecondaryButton(title: working == .google ? "Opening Google…" : "Continue with Google",
-                            bordered: true) {
+                            bordered: true,
+                            image: "GoogleLogo") {
                 Task { await signIn(.google) }
             }
         }

@@ -73,8 +73,9 @@ struct SocialButtonRow: View {
 
 // MARK: - Marks
 //
-// Drawn rather than bundled: the comp uses monochrome glyphs, and shipping
-// real brand assets means honouring each brand's usage rules.
+// The official marks, unaltered, as each brand's sign-in guidelines ask:
+// Google's four-colour G and Facebook's blue f from the asset catalog, and
+// Apple's own system logo.
 
 private struct AppleMark: View {
     @Environment(\.dwell) private var t
@@ -86,19 +87,9 @@ private struct AppleMark: View {
 }
 
 private struct GoogleMark: View {
-    @Environment(\.dwell) private var t
-    var body: some View {
-        Text("G")
-            .font(.system(size: 24, weight: .medium, design: .rounded))
-            .foregroundStyle(t.textPrimary)
-    }
+    var body: some View { BrandMark(name: "GoogleLogo", size: 24) }
 }
 
 private struct FacebookMark: View {
-    @Environment(\.dwell) private var t
-    var body: some View {
-        Text("f")
-            .font(.system(size: 26, weight: .bold, design: .serif))
-            .foregroundStyle(t.textPrimary)
-    }
+    var body: some View { BrandMark(name: "FacebookLogo", size: 26) }
 }

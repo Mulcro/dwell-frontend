@@ -58,7 +58,7 @@ struct LogInView: View {
                     Rectangle().fill(t.border).frame(height: 1)
                 }
 
-                PrimaryButton(title: "Continue with YouVersion") {
+                PrimaryButton(title: "Continue with YouVersion", image: "YouVersionLogo") {
                     Task { await youVersion() }
                 }
 

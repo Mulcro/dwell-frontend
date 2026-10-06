@@ -266,7 +266,7 @@ struct ReflectionThreadView: View {
                 }
 
                 if canSend {
-                    AsyncButton { await send() } label: {
+                    Button { Task { await send() } } label: {
                         Image(systemName: sending ? "ellipsis" : "arrow.up.circle.fill")
                             .font(.system(size: 30))
                             .foregroundStyle(t.accent)

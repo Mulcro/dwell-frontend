@@ -441,11 +441,18 @@ struct SettingsView: View {
         })
     }
 
+    /// Counts saves, so only the newest one's result touches the switches.
+    @State private var saveGeneration = 0
+
     /// A failed save shows the server's choices again rather than an older
-    /// local snapshot, which a later switch flip may already have replaced.
+    /// local snapshot. Only when it's the newest save: an older failure must
+    /// not undo switches a later, still-queued save is about to send.
     private func save(_ switches: [String: Bool]) {
+        saveGeneration += 1
+        let generation = saveGeneration
         Task {
-            guard await !session.saveNotificationPrefs(prefs(from: switches)) else { return }
+            let saved = await session.saveNotificationPrefs(prefs(from: switches))
+            guard !saved, generation == saveGeneration else { return }
             let server = session.me?.notificationPrefs ?? [:]
             notifications = Dictionary(uniqueKeysWithValues:
                 notificationRows.map { ($0, server[Self.prefKey[$0] ?? ""] ?? true) })

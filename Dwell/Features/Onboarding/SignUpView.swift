@@ -75,7 +75,7 @@ struct SignUpView: View {
                             line; Text("or").font(.dwellSmall).foregroundStyle(t.textSecondary); line
                         }
 
-                        PrimaryButton(title: "Continue with YouVersion") {
+                        PrimaryButton(title: "Continue with YouVersion", image: "YouVersionLogo") {
                             Task { await youVersion() }
                         }
 

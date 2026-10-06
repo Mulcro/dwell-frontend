@@ -14,6 +14,9 @@ struct PrimaryButton: View {
     /// Shorter pill for in-card actions like Reply, where a full-height
     /// primary button dominates the content it belongs to.
     var compact: Bool = false
+    /// A brand mark from the asset catalog, drawn in full colour before the
+    /// title, as on "Continue with YouVersion".
+    var image: String? = nil
     var action: () -> Void = {}
     @Environment(\.dwell) private var t
 
@@ -26,6 +29,8 @@ struct PrimaryButton: View {
             HStack(spacing: Space.sm) {
                 if loading {
                     ProgressView().tint(t.onInk)
+                } else if let image {
+                    BrandMark(name: image)
                 } else if let icon {
                     Image(systemName: icon)
                         .font(.system(size: 17, weight: .medium))
@@ -50,6 +55,8 @@ struct SecondaryButton: View {
     /// Matches PrimaryButton's compact height when the two sit side by side
     /// inside a card.
     var compact: Bool = false
+    /// A brand mark drawn before the title, as on "Continue with Google".
+    var image: String? = nil
     var action: () -> Void = {}
     @Environment(\.dwell) private var t
 
@@ -58,8 +65,10 @@ struct SecondaryButton: View {
             Haptics.tap()
             action()
         } label: {
-            Text(title)
-                .font(.dwellButton)
+            HStack(spacing: Space.sm) {
+                if let image { BrandMark(name: image) }
+                Text(title).font(.dwellButton)
+            }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, compact ? 12 : 18)
                 .foregroundStyle(t.textPrimary)
@@ -83,5 +92,22 @@ struct PressScale: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.975 : 1)
             .opacity(configuration.isPressed ? 0.9 : 1)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+/// A provider's own logo at button size, in its own colours, never tinted.
+/// Brand guidelines want the official marks unaltered on sign-in buttons.
+struct BrandMark: View {
+    let name: String
+    var size: CGFloat = 22
+
+    var body: some View {
+        Image(name)
+            .resizable()
+            .renderingMode(.original)
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
+            .accessibilityHidden(true)
     }
 }

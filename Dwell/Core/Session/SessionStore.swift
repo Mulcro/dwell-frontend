@@ -356,6 +356,34 @@ final class SessionStore {
         await uploadPushToken()
     }
 
+    // MARK: - Notification switches
+
+    private var prefsQueue: Task<Void, Never>?
+    private var newestPrefs: [String: Bool]?
+
+    /// Saves run one at a time and each sends the newest choices, so with two
+    /// switches flipped quickly a slow older save can't land last and undo
+    /// the newer one. A result only applies to the account that made it.
+    /// Returns false when the save failed.
+    func saveNotificationPrefs(_ prefs: [String: Bool]) async -> Bool {
+        newestPrefs = prefs
+        let owner = me?.id
+        let previous = prefsQueue
+        let save = Task { @MainActor () -> Bool in
+            await previous?.value
+            guard let owner, me?.id == owner, let latest = newestPrefs else { return true }
+            do {
+                let updated = try await api.updateNotificationPrefs(latest)
+                if me?.id == owner { me = updated }
+                return true
+            } catch {
+                return false
+            }
+        }
+        prefsQueue = Task { _ = await save.value }
+        return await save.value
+    }
+
     /// The upload in flight, so sign-out can wait for it before clearing.
     private var pushUpload: Task<Void, Never>?
     private var signingOut = false

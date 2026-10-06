@@ -431,20 +431,30 @@ struct SettingsView: View {
     /// Flips the switch at once and writes the whole object; a failed write
     /// puts it back and says so.
     private func setNotification(_ row: String, _ on: Bool) {
-        let before = notifications
         notifications[row] = on
-        let prefs = Dictionary(uniqueKeysWithValues: notificationRows.compactMap { name in
-            Self.prefKey[name].map { ($0, notifications[name] ?? true) }
+        save(notifications)
+    }
+
+    private func prefs(from switches: [String: Bool]) -> [String: Bool] {
+        Dictionary(uniqueKeysWithValues: notificationRows.compactMap { name in
+            Self.prefKey[name].map { ($0, switches[name] ?? true) }
         })
+    }
+
+    /// A failed save shows the server's choices again rather than an older
+    /// local snapshot, which a later switch flip may already have replaced.
+    private func save(_ switches: [String: Bool]) {
         Task {
-            do {
-                session.me = try await session.api.updateNotificationPrefs(prefs)
-            } catch {
-                notifications = before
-                toast = .failure("Couldn't save that. Try again.")
-            }
+            guard await !session.saveNotificationPrefs(prefs(from: switches)) else { return }
+            let server = session.me?.notificationPrefs ?? [:]
+            notifications = Dictionary(uniqueKeysWithValues:
+                notificationRows.map { ($0, server[Self.prefKey[$0] ?? ""] ?? true) })
+            toast = .failure("Couldn't save that. Try again.")
         }
     }
+
+    /// Where the switches lived before they moved to the account.
+    private static let legacyNotificationsKey = "settings.notifications"
 
     private func seedToggles() {
         guard notifications.isEmpty else { return }
@@ -453,6 +463,23 @@ struct SettingsView: View {
         let stored = session.me?.notificationPrefs ?? [:]
         notifications = Dictionary(uniqueKeysWithValues:
             notificationRows.map { ($0, stored[Self.prefKey[$0] ?? ""] ?? true) })
+        // Choices made when the switches were saved only on this phone move
+        // to the account once, if it has none of its own yet; then the
+        // phone's copy goes, so the account is the only source.
+        let legacy = UserDefaults.standard.dictionary(forKey: Self.legacyNotificationsKey) as? [String: Bool]
+        if stored.isEmpty, let legacy, legacy.values.contains(false) {
+            for row in notificationRows { notifications[row] = legacy[row] ?? true }
+            let migrated = prefs(from: notifications)
+            // Kept until the account has them, so a failed save retries the
+            // next time Settings opens.
+            Task {
+                if await session.saveNotificationPrefs(migrated) {
+                    UserDefaults.standard.removeObject(forKey: Self.legacyNotificationsKey)
+                }
+            }
+        } else {
+            UserDefaults.standard.removeObject(forKey: Self.legacyNotificationsKey)
+        }
         findByPhone = UserDefaults.standard.bool(forKey: Self.findByPhoneKey)
         contactSync = UserDefaults.standard.bool(forKey: Self.contactSyncKey)
     }

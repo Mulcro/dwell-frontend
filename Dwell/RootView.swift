@@ -7,6 +7,7 @@ struct RootView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var showSplash = true
+    @State private var demoPushQueued = false
 
     private var route: Route { Route.resolve(session) }
 
@@ -21,8 +22,16 @@ struct RootView: View {
             }
         }
         .task { await boot() }
+        .onReceive(NotificationCenter.default.publisher(for: .dwellPushToken)) { note in
+            guard let token = note.object as? String else { return }
+            Task { await session.savePushToken(token) }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, !showSplash { Task { await session.reload() } }
+            // Every return to the app, not only after a successful load: covers
+            // allowing notifications in iOS Settings and coming back, and a
+            // launch whose group load failed.
+            if phase == .active { Task { await PushRegistration.registerIfAuthorized() } }
         }
         // Midnight, a timezone change, or the clock being set. Returning to
         // the foreground already reloads, but an app left open across midnight
@@ -32,6 +41,11 @@ struct RootView: View {
             for: UIApplication.significantTimeChangeNotification)) { _ in
             Task { await session.reload() }
         }
+        // A tapped reply push, acted on once Home is up: on a cold start it
+        // waits for sign-in and the group to load.
+        .onChange(of: PushInbox.shared.pending) { _, _ in Task { await openPendingPush() } }
+        .onChange(of: route) { _, _ in Task { await openPendingPush() } }
+        .onChange(of: showSplash) { _, _ in Task { await openPendingPush() } }
         .onOpenURL { url in
             if let token = InviteLink.token(from: url) {
                 session.pendingInviteToken = token
@@ -56,6 +70,38 @@ struct RootView: View {
         }
     }
 
+    private func openPendingPush() async {
+        #if DEBUG
+        await queueDemoPush()
+        #endif
+        guard route == .home, !showSplash, let pending = PushInbox.shared.pending else { return }
+        PushInbox.shared.pending = nil
+        guard let reflection = await session.reflectionForPush(pending) else { return }
+        TopPresenter.present { close in
+            ReflectionThreadView(reflection: reflection,
+                                 authorName: session.name(for: reflection.userId),
+                                 highlightCommentId: pending.commentId,
+                                 onClose: close)
+                .environment(session)
+                .dwellThemed()
+        }
+    }
+
+    #if DEBUG
+    /// DWELL_PUSH_DEMO=1 queues a reply push for the newest reply on your own
+    /// reflection, as if it had been tapped, for screenshots of the routing.
+    private func queueDemoPush() async {
+        guard ProcessInfo.processInfo.environment["DWELL_PUSH_DEMO"] == "1", !demoPushQueued,
+              route == .home, !showSplash,
+              let group = session.group.value ?? nil,
+              let mine = session.myReflection else { return }
+        demoPushQueued = true
+        let replies = (try? await session.api.comments(reflectionId: mine.id)) ?? []
+        PushInbox.shared.pending = PushRoute(groupId: group.id, reflectionId: mine.id,
+                                             commentId: replies.max { $0.createdAt < $1.createdAt }?.id)
+    }
+    #endif
+
     /// Hold the splash for a beat even on a fast boot, so it reads as a
     /// deliberate opening rather than a flicker.
     private func boot() async {
@@ -67,6 +113,7 @@ struct RootView: View {
 
         let started = Date()
         await session.bootstrap()
+        await PushRegistration.registerIfAuthorized()
 
         let minimumOnScreen: TimeInterval = 1.1
         let elapsed = Date().timeIntervalSince(started)

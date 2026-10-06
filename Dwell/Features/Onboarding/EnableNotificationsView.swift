@@ -72,14 +72,17 @@ struct EnableNotificationsView: View {
         .clipShape(RoundedRectangle(cornerRadius: Radius.lg, style: .continuous))
     }
 
-    /// Push delivery is stubbed for the MVP (nudges render in-app), but the
-    /// permission is still worth holding so it's there when APNs lands.
+    /// Asks for permission, then registers with APNs straight away so the
+    /// token reaches the backend before the first nudge is due.
     private func request() async {
         asking = true
         defer { asking = false }
         let granted = try? await UNUserNotificationCenter.current()
             .requestAuthorization(options: [.alert, .sound, .badge])
-        if granted == true { Haptics.posted() }
+        if granted == true {
+            Haptics.posted()
+            UIApplication.shared.registerForRemoteNotifications()
+        }
         onDone()
     }
 }

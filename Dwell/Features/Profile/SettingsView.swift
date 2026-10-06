@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 /// Figma: "Settings · Group Owner" / "Settings · Member".
 ///
@@ -13,6 +14,9 @@ struct SettingsView: View {
     @Environment(\.dwell) private var t
 
     @State private var notifications: [String: Bool] = [:]
+    /// iOS's own answer for Dwell, re-read on return from iOS Settings.
+    @State private var pushStatus: UNAuthorizationStatus?
+    @Environment(\.scenePhase) private var scenePhase
     @State private var findByPhone = false
     @State private var contactSync = false
     @State private var showLanguage = false
@@ -104,7 +108,6 @@ struct SettingsView: View {
         }
     }
 
-    private static let notificationsKey = "settings.notifications"
     private static let findByPhoneKey = "settings.findByPhone"
     private static let contactSyncKey = "settings.contactSync"
 
@@ -113,10 +116,7 @@ struct SettingsView: View {
             ForEach(Array(notificationRows.enumerated()), id: \.offset) { index, row in
                 Toggle(isOn: Binding(
                     get: { notifications[row] ?? true },
-                    set: {
-                        notifications[row] = $0
-                        UserDefaults.standard.set(notifications, forKey: Self.notificationsKey)
-                    })) {
+                    set: { setNotification(row, $0) })) {
                     Text(row)
                         .font(.dwellBody)
                         .foregroundStyle(t.textPrimary)
@@ -128,14 +128,54 @@ struct SettingsView: View {
             }
 
             divider
-            // Honest about reach: push needs a paid Apple Developer
-            // membership, so until then these govern what appears in the app.
-            Text("Reminders appear in Dwell for now. Push notifications arrive "
-                 + "once the app is on the App Store.")
-                .font(.dwellCaption)
+            pushRow
+        }
+        .task { await refreshPushStatus() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await refreshPushStatus() } }
+        }
+    }
+
+    /// Onboarding is the only other place that asks, and only new accounts
+    /// go through it, so this is how everyone else turns push on.
+    @ViewBuilder
+    private var pushRow: some View {
+        switch pushStatus {
+        case .authorized, .provisional, .ephemeral:
+            Label("Push notifications are on", systemImage: "bell.badge")
+                .font(.dwellSmall)
                 .foregroundStyle(t.textSecondary)
                 .padding(.top, Space.sm)
+        case .denied:
+            VStack(alignment: .leading, spacing: Space.sm) {
+                Text("Push notifications are off for Dwell. iOS only lets you turn them back on in Settings.")
+                    .font(.dwellSmall)
+                    .foregroundStyle(t.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                SecondaryButton(title: "Open Settings", bordered: true, compact: true) {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+            }
+            .padding(.top, Space.sm)
+        case .notDetermined:
+            PrimaryButton(title: "Turn on push notifications", accent: true, compact: true) {
+                Task {
+                    let granted = try? await UNUserNotificationCenter.current()
+                        .requestAuthorization(options: [.alert, .sound, .badge])
+                    if granted == true { UIApplication.shared.registerForRemoteNotifications() }
+                    await refreshPushStatus()
+                }
+            }
+            .padding(.top, Space.sm)
+        default:
+            EmptyView()
         }
+    }
+
+    private func refreshPushStatus() async {
+        pushStatus = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
     }
 
     private var preferencesCard: some View {
@@ -273,7 +313,7 @@ struct SettingsView: View {
             card {
                 Button {
                     Task {
-                        try? await session.api.signOut()
+                        await session.signOut()
                         session.finishOnboarding()
                         await session.bootstrap()
                     }
@@ -377,13 +417,76 @@ struct SettingsView: View {
         return TimeZone(identifier: id)?.abbreviation() ?? id
     }
 
+    /// The backend's key for each switch (KAN-22). The server checks these
+    /// before sending, so a turned-off type stops arriving on the lock screen
+    /// too, not only in the app.
+    private static let prefKey: [String: String] = [
+        "Reminder nudges": "nudge",
+        "Friends' posts": "friends_posts",
+        "Comments, reactions, & mentions": "reply",
+        "Returning friends": "returning_friends",
+        "Streaks & memories": "streaks_memories",
+    ]
+
+    /// Flips the switch at once and writes the whole object; a failed write
+    /// puts it back and says so.
+    private func setNotification(_ row: String, _ on: Bool) {
+        notifications[row] = on
+        save(notifications)
+    }
+
+    private func prefs(from switches: [String: Bool]) -> [String: Bool] {
+        Dictionary(uniqueKeysWithValues: notificationRows.compactMap { name in
+            Self.prefKey[name].map { ($0, switches[name] ?? true) }
+        })
+    }
+
+    /// Counts saves, so only the newest one's result touches the switches.
+    @State private var saveGeneration = 0
+
+    /// A failed save shows the server's choices again rather than an older
+    /// local snapshot. Only when it's the newest save: an older failure must
+    /// not undo switches a later, still-queued save is about to send.
+    private func save(_ switches: [String: Bool]) {
+        saveGeneration += 1
+        let generation = saveGeneration
+        Task {
+            let saved = await session.saveNotificationPrefs(prefs(from: switches))
+            guard !saved, generation == saveGeneration else { return }
+            let server = session.me?.notificationPrefs ?? [:]
+            notifications = Dictionary(uniqueKeysWithValues:
+                notificationRows.map { ($0, server[Self.prefKey[$0] ?? ""] ?? true) })
+            toast = .failure("Couldn't save that. Try again.")
+        }
+    }
+
+    /// Where the switches lived before they moved to the account.
+    private static let legacyNotificationsKey = "settings.notifications"
+
     private func seedToggles() {
         guard notifications.isEmpty else { return }
         // Restored rather than defaulted: these used to reset every time
         // Settings was rebuilt, so a choice never survived leaving the screen.
-        let stored = UserDefaults.standard.dictionary(forKey: Self.notificationsKey) as? [String: Bool]
+        let stored = session.me?.notificationPrefs ?? [:]
         notifications = Dictionary(uniqueKeysWithValues:
-            notificationRows.map { ($0, stored?[$0] ?? true) })
+            notificationRows.map { ($0, stored[Self.prefKey[$0] ?? ""] ?? true) })
+        // Choices made when the switches were saved only on this phone move
+        // to the account once, if it has none of its own yet; then the
+        // phone's copy goes, so the account is the only source.
+        let legacy = UserDefaults.standard.dictionary(forKey: Self.legacyNotificationsKey) as? [String: Bool]
+        if stored.isEmpty, let legacy, legacy.values.contains(false) {
+            for row in notificationRows { notifications[row] = legacy[row] ?? true }
+            let migrated = prefs(from: notifications)
+            // Kept until the account has them, so a failed save retries the
+            // next time Settings opens.
+            Task {
+                if await session.saveNotificationPrefs(migrated) {
+                    UserDefaults.standard.removeObject(forKey: Self.legacyNotificationsKey)
+                }
+            }
+        } else {
+            UserDefaults.standard.removeObject(forKey: Self.legacyNotificationsKey)
+        }
         findByPhone = UserDefaults.standard.bool(forKey: Self.findByPhoneKey)
         contactSync = UserDefaults.standard.bool(forKey: Self.contactSyncKey)
     }

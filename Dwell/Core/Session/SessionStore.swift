@@ -346,6 +346,90 @@ final class SessionStore {
         resetOnboarding()
     }
 
+    // MARK: - Push
+
+    /// The device's APNs token, held until someone is signed in to own it.
+    private var devicePushToken: String?
+
+    func savePushToken(_ token: String) async {
+        devicePushToken = token
+        await uploadPushToken()
+    }
+
+    // MARK: - Notification switches
+
+    private var prefsQueue: Task<Void, Never>?
+    private var newestPrefs: [String: Bool]?
+
+    /// Saves run one at a time and each sends the newest choices, so with two
+    /// switches flipped quickly a slow older save can't land last and undo
+    /// the newer one. A result only applies to the account that made it.
+    /// Returns false when the save failed.
+    func saveNotificationPrefs(_ prefs: [String: Bool]) async -> Bool {
+        newestPrefs = prefs
+        let owner = me?.id
+        let previous = prefsQueue
+        let save = Task { @MainActor () -> Bool in
+            await previous?.value
+            guard let owner, me?.id == owner, let latest = newestPrefs else { return true }
+            do {
+                let updated = try await api.updateNotificationPrefs(latest)
+                if me?.id == owner { me = updated }
+                return true
+            } catch {
+                return false
+            }
+        }
+        prefsQueue = Task { _ = await save.value }
+        return await save.value
+    }
+
+    /// The upload in flight, so sign-out can wait for it before clearing.
+    private var pushUpload: Task<Void, Never>?
+    private var signingOut = false
+
+    /// PATCHes the token onto your own row, skipping the request when it's
+    /// already there. A failure is retried on the next registration.
+    private func uploadPushToken() async {
+        guard !signingOut, let token = devicePushToken, let me, me.pushToken != token else { return }
+        let owner = me.id
+        let upload = Task { @MainActor in
+            guard let updated = try? await api.updateProfile(name: nil, timezone: nil,
+                                                             preferredLanguage: nil, pushToken: token)
+            else { return }
+            // An account switch mid-request would otherwise put the previous
+            // account's profile back on screen.
+            if self.me?.id == owner { self.me = updated }
+        }
+        pushUpload = upload
+        await upload.value
+    }
+
+    /// The reflection a tapped reply push is about. Nil when the push is for
+    /// a group this account isn't in, which happens after the phone switched
+    /// accounts; the app then just opens. A reply is always on your own
+    /// reflection, so it's among yours, possibly after a reload.
+    func reflectionForPush(_ route: PushRoute) async -> Reflection? {
+        guard group.value??.id == route.groupId else { return nil }
+        if let found = myReflections.first(where: { $0.id == route.reflectionId }) { return found }
+        await reload()
+        return myReflections.first { $0.id == route.reflectionId }
+    }
+
+    /// Releases this phone's push token from the account first, so its pushes
+    /// stop reaching whoever uses the phone next. The token stays in memory
+    /// for the next account to claim. Best effort: signing out never waits
+    /// on it succeeding.
+    func signOut() async {
+        // No new upload may start, and one already in flight finishes first:
+        // landing after the clear would put the token back on this account.
+        signingOut = true
+        defer { signingOut = false }
+        await pushUpload?.value
+        try? await api.clearPushToken()
+        try? await api.signOut()
+    }
+
     // MARK: - Same crew, new plan
 
     /// Turned-down invitations, per account on this device. The backend keeps
@@ -532,6 +616,7 @@ final class SessionStore {
             group = .loaded(g)
             if let g { try await loadGroupDetail(g) }
             await loadContinuations()
+            await uploadPushToken()
         } catch DwellError.notAuthenticated {
             signedOut()
         } catch {

@@ -206,7 +206,7 @@ struct OnboardingFlow: View {
     /// Home from there — the router sends a loaded group home on its own.
     private func backToLogIn() {
         Task {
-            try? await session.api.signOut()
+            await session.signOut()
             session.finishOnboarding()
             await session.bootstrap()
             showLogIn = true

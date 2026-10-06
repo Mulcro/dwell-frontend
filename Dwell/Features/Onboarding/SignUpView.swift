@@ -11,7 +11,6 @@ struct SignUpView: View {
     var onContinue: () -> Void = {}
     var onYouVersion: () -> Void = {}
     var onSignedIn: () -> Void = {}
-    var onInviteLink: () -> Void = {}
 
     @Environment(SessionStore.self) private var session
     @Environment(\.dwell) private var t
@@ -85,7 +84,6 @@ struct SignUpView: View {
                                             emailError = message
                                         })
 
-                        SecondaryButton(title: "I have an invite link", action: onInviteLink)
                     }
                     .padding(.top, Space.lg)
                     .padding(.bottom, Space.xxl)

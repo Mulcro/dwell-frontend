@@ -4,7 +4,6 @@ import SwiftUI
 struct LogInView: View {
     var onDone: () -> Void = {}
     var onYouVersion: () -> Void = {}
-    var onInviteLink: () -> Void = {}
 
     @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
@@ -68,7 +67,6 @@ struct LogInView: View {
                                     error = message
                                 })
 
-                SecondaryButton(title: "I have an invite link", action: onInviteLink)
                 }
                 .padding(.horizontal, Space.gutter)
                 .frame(minHeight: geo.size.height)

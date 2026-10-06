@@ -8,9 +8,12 @@ struct ShareInviteView: View {
 
     private var group: DwellGroup? { session.group.value ?? nil }
 
-    private var inviteURL: URL {
-        URL(string: "https://dwell.com/\(group?.inviteToken ?? "")")
-            ?? URL(string: "https://dwell.com")!
+    /// The code as plain text, not a link: there's no tested invite link
+    /// yet, and the dwell.com domain isn't ours.
+    private var inviteMessage: String {
+        let name = group?.name ?? "my group"
+        guard let code = group?.inviteToken else { return "Join \(name) on Dwell." }
+        return "Join \(name) on Dwell with the code \(code). We read together, and each day unlocks once half of us have posted."
     }
 
     var body: some View {
@@ -33,8 +36,7 @@ struct ShareInviteView: View {
 
                 Spacer()
 
-                ShareLink(item: inviteURL,
-                          message: Text("Join \(group?.name ?? "my group") on Dwell, we read together and the day opens when enough of us show up.")) {
+                ShareLink(item: inviteMessage) {
                     Text("Share Invite")
                         .font(.dwellButton)
                         .frame(maxWidth: .infinity)

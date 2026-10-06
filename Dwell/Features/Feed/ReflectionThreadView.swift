@@ -267,9 +267,14 @@ struct ReflectionThreadView: View {
 
                 if canSend {
                     Button { Task { await send() } } label: {
-                        Image(systemName: sending ? "ellipsis" : "arrow.up.circle.fill")
-                            .font(.system(size: 30))
-                            .foregroundStyle(t.accent)
+                        if sending {
+                            LoadingDots(color: t.accent)
+                                .frame(width: 30, height: 30)
+                        } else {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 30))
+                                .foregroundStyle(t.accent)
+                        }
                     }
                     .buttonStyle(PressScale())
                     .disabled(sending)

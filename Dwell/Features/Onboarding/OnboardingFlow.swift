@@ -83,8 +83,7 @@ struct OnboardingFlow: View {
                     // whether they have a group. If they do, the router takes
                     // them home on its own; if not, they need one.
                     onDone: { showLogIn = false; step = .startOrJoin },
-                    onYouVersion: { showLogIn = false; step = .youVersion },
-                    onInviteLink: { showLogIn = false; step = .startOrJoin })
+                    onYouVersion: { showLogIn = false; step = .youVersion })
             }
             .overlay(alignment: .bottom) {
                 if let error {
@@ -113,8 +112,7 @@ struct OnboardingFlow: View {
         case .signUp:
             SignUpView(onBack: { step = .welcome },
                        onContinue: { step = .stats },
-                       onYouVersion: { step = .youVersion },
-                       onInviteLink: { step = .startOrJoin })
+                       onYouVersion: { step = .youVersion })
 
         case .youVersion:
             YouVersionSignInView(onBack: { step = .signUp },

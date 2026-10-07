@@ -23,14 +23,15 @@ struct SocialButtonRow: View {
 
     private func button<Mark: View>(_ provider: AuthProvider,
                                     @ViewBuilder mark: () -> Mark) -> some View {
-        Button {
-            Task { await tap(provider) }
+        let mark = mark()
+        return AsyncButton {
+            await tap(provider)
         } label: {
             Group {
                 if working == provider {
                     ProgressView().tint(t.textPrimary)
                 } else {
-                    mark()
+                    mark
                 }
             }
             .frame(maxWidth: .infinity)

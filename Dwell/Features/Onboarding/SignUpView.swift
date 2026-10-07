@@ -66,17 +66,15 @@ struct SignUpView: View {
                         PrimaryButton(title: "Continue",
                                       enabled: canContinue,
                                       loading: working,
-                                      accent: true) {
-                            Task { await submit() }
-                        }
+                                      accent: true,
+                                      perform: submit)
 
                         HStack(spacing: Space.md) {
                             line; Text("or").font(.dwellSmall).foregroundStyle(t.textSecondary); line
                         }
 
-                        PrimaryButton(title: "Continue with YouVersion", image: "YouVersionLogo") {
-                            Task { await youVersion() }
-                        }
+                        PrimaryButton(title: "Continue with YouVersion", image: "YouVersionLogo",
+                                      perform: youVersion)
 
                         SocialButtonRow(onSignedIn: onContinue,
                                         onError: { message in

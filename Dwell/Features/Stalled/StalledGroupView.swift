@@ -101,8 +101,8 @@ struct StalledGroupView: View {
                         title: String,
                         detail: String,
                         filled: Bool) -> some View {
-        Button {
-            Task { await answer(action) }
+        AsyncButton {
+            await answer(action)
         } label: {
             HStack(alignment: .center, spacing: Space.md) {
                 VStack(alignment: .leading, spacing: 4) {

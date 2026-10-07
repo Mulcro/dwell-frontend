@@ -119,9 +119,8 @@ struct ReviewReflectionView: View {
                 }
 
                 PrimaryButton(title: "Post to \(session.group.value??.name ?? "the group")",
-                              loading: posting) {
-                    Task { await post() }
-                }
+                              loading: posting,
+                              perform: post)
             }
             .padding(.horizontal, Space.gutter)
             .padding(.bottom, Space.lg)

@@ -161,12 +161,10 @@ struct SettingsView: View {
             .padding(.top, Space.sm)
         case .notDetermined:
             PrimaryButton(title: "Turn on push notifications", accent: true, compact: true) {
-                Task {
-                    let granted = try? await UNUserNotificationCenter.current()
-                        .requestAuthorization(options: [.alert, .sound, .badge])
-                    if granted == true { UIApplication.shared.registerForRemoteNotifications() }
-                    await refreshPushStatus()
-                }
+                let granted = try? await UNUserNotificationCenter.current()
+                    .requestAuthorization(options: [.alert, .sound, .badge])
+                if granted == true { UIApplication.shared.registerForRemoteNotifications() }
+                await refreshPushStatus()
             }
             .padding(.top, Space.sm)
         default:
@@ -216,8 +214,8 @@ struct SettingsView: View {
     @State private var movingDay = false
 
     private func debugDayButton(_ label: String, icon: String, action: String) -> some View {
-        Button {
-            Task { await moveDay(action) }
+        AsyncButton {
+            await moveDay(action)
         } label: {
             HStack(spacing: Space.sm) {
                 Image(systemName: icon).font(.system(size: 11))
@@ -311,12 +309,10 @@ struct SettingsView: View {
     private var accountCard: some View {
         VStack(alignment: .leading, spacing: Space.md) {
             card {
-                Button {
-                    Task {
-                        await session.signOut()
-                        session.finishOnboarding()
-                        await session.bootstrap()
-                    }
+                AsyncButton {
+                    await session.signOut()
+                    session.finishOnboarding()
+                    await session.bootstrap()
                 } label: {
                     HStack {
                         Text("Sign out").font(.dwellBody).foregroundStyle(t.textPrimary)

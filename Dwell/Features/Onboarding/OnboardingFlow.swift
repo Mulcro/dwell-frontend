@@ -178,10 +178,10 @@ struct OnboardingFlow: View {
             FrequencyThresholdView(
                 onBack: { step = .buildGroup },
                 onNext: { frequency, customDays, moveOn in
-                    Task { await create(name: name, plan: plan,
-                                        frequency: frequency,
-                                        customDays: customDays,
-                                        moveOn: moveOn) }
+                    await create(name: name, plan: plan,
+                                 frequency: frequency,
+                                 customDays: customDays,
+                                 moveOn: moveOn)
                 })
 
         case .invite:

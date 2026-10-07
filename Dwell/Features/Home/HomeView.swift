@@ -244,9 +244,8 @@ struct HomeView: View {
 
             PrimaryButton(title: nudgeTitle,
                           enabled: !hasNudgedToday && !nudging,
-                          icon: hasNudgedToday ? "checkmark" : "bell") {
-                Task { await nudge() }
-            }
+                          icon: hasNudgedToday ? "checkmark" : "bell",
+                          perform: nudge)
 
             yourReflectionRow
             nextOpensNote

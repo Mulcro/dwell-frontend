@@ -261,10 +261,21 @@ struct ReflectionThreadView: View {
                 }
 
                 if canSend {
-                    Button { Task { await send() } } label: {
-                        Image(systemName: sending ? "ellipsis" : "arrow.up.circle.fill")
-                            .font(.system(size: 30))
-                            .foregroundStyle(t.accent)
+                    Button {
+                        // Set here, not inside send(): by the time its Task
+                        // runs, a quick second tap could already be queued.
+                        guard !sending else { return }
+                        sending = true
+                        Task { await send() }
+                    } label: {
+                        if sending {
+                            LoadingDots(color: t.accent)
+                                .frame(width: 30, height: 30)
+                        } else {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 30))
+                                .foregroundStyle(t.accent)
+                        }
                     }
                     .buttonStyle(PressScale())
                     .disabled(sending)
@@ -437,11 +448,11 @@ struct ReflectionThreadView: View {
         catch { comments = .failed(error.localizedDescription) }
     }
 
+    /// The send button sets `sending` before calling this.
     private func send() async {
+        defer { sending = false }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard canSend else { return }
-        sending = true
-        defer { sending = false }
         if attachment != nil { toast = .working("Sending…") }
         do {
             try await session.api.addComment(

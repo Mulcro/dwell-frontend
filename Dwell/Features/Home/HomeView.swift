@@ -11,6 +11,7 @@ struct HomeView: View {
     @State private var showPulse = false
     @State private var nudging = false
     @State private var nudgedMarker: String?
+    @State private var toast: Toast?
     /// The recap being read full screen — weekly from its card, or the
     /// challenge recap from inside the celebration.
     @State private var openRecap: AIInsight?
@@ -58,6 +59,7 @@ struct HomeView: View {
         }
         .task(id: session.currentDay?.id) { await loadPosters() }
         .refreshable { await session.reload() }
+        .toast($toast)
         .fullScreenCover(isPresented: $showPulse) {
             if let pulse = session.visiblePulse {
                 GroupPulseView(insight: pulse,
@@ -710,10 +712,28 @@ struct HomeView: View {
         guard !hasNudgedToday, let marker = nudgeMarker else { return }
         nudging = true
         defer { nudging = false }
-        Haptics.tap()
-        // No nudge endpoint exists. The cron writes ai_insights rows. Tracked
-        // in the backend request doc.
-        try? await Task.sleep(for: .milliseconds(600))
+        guard let groupId = session.group.value??.id else { return }
+        do {
+            let sent = try await session.api.nudgeGroup(groupId: groupId)
+            markNudged(marker)
+            toast = .success(sent == 0 ? "Everyone's already posted today."
+                             : sent == 1 ? "Nudged 1 person."
+                             : "Nudged \(sent) people.")
+        } catch DwellError.conflict(let message) {
+            // Already nudged today (perhaps from another phone), or the group
+            // isn't open for nudges. Either way there's nothing more to send.
+            markNudged(marker)
+            toast = .failure(message)
+        } catch DwellError.aiUnavailable {
+            // The server's 502 here: no push got through. It doesn't use up
+            // today's nudge, so the button stays.
+            toast = .failure("We couldn't reach anyone just now. Try again in a bit.")
+        } catch {
+            toast = .failure(error.localizedDescription)
+        }
+    }
+
+    private func markNudged(_ marker: String) {
         nudgedMarker = marker
         // Survives a relaunch, so the limit isn't reset by closing the app.
         UserDefaults.standard.set(marker, forKey: Self.nudgeKey)

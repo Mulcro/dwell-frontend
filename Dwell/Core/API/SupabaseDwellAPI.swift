@@ -211,6 +211,14 @@ final class SupabaseDwellAPI: DwellAPI {
         try await invoke("join-group", body: ["group_id": .string(groupId.uuidString.lowercased())])
     }
 
+    func nudgeGroup(groupId: UUID) async throws -> Int {
+        struct Response: Decodable { let sent: Int }
+        let response: Response = try await invoke("nudge-group", body: [
+            "group_id": .string(groupId.uuidString.lowercased())
+        ])
+        return response.sent
+    }
+
     func myContinuations() async throws -> [Continuation] {
         try await client.rpc("my_continuations").execute().value
     }

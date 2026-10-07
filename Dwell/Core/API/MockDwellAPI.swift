@@ -750,6 +750,14 @@ final class MockDwellAPI: DwellAPI {
         throw DwellError.notImplemented("Day control talks to the live backend; the mock's days are fixed per scenario.")
     }
 
+    func nudgeGroup(groupId: UUID) async throws -> Int {
+        try await tick()
+        guard let me else { throw DwellError.notAuthenticated }
+        let today = days.last?.id
+        let posted = Set(reflectionsStore.filter { $0.dayInstanceId == today }.map(\.userId))
+        return membersStore.filter { $0.userId != me.id && !posted.contains($0.userId) }.count
+    }
+
     func passage(ref: String) async throws -> Passage {
         try await tick()
         guard let p = Seed.passages[ref] else { throw DwellError.notFound("Passage \(ref)") }

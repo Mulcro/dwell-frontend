@@ -490,15 +490,12 @@ struct HomeView: View {
     @ViewBuilder
     private var pulseCard: some View {
         if let pulse = session.visiblePulse {
-            Button { showPulse = true } label: {
+            Button {
+                session.markPulseSeen(pulse)
+                showPulse = true
+            } label: {
                 HStack(spacing: Space.md) {
-                    ZStack {
-                        Circle().fill(t.accent.opacity(0.15))
-                        Image(systemName: "sparkle")
-                            .font(.system(size: 15))
-                            .foregroundStyle(t.accent)
-                    }
-                    .frame(width: 32, height: 32)
+                    EagleAvatar(mood: session.isPulseNew(pulse) ? .active : .resting, size: 36)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Group Pulse")
@@ -544,13 +541,8 @@ struct HomeView: View {
     private var nudgeBanner: some View {
         if let nudge = session.visibleNudge {
             HStack(alignment: .top, spacing: Space.md) {
-                ZStack {
-                    Circle().fill(t.accent.opacity(0.15))
-                    Image(systemName: "sparkle")
-                        .font(.system(size: 14))
-                        .foregroundStyle(t.accent)
-                }
-                .frame(width: 30, height: 30)
+                // Only shown until you've posted, so it's always news.
+                EagleAvatar(mood: .active, size: 36)
 
                 Text(nudge.content)
                     .font(.dwellBody)

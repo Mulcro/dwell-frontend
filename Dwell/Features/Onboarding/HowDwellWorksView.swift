@@ -252,18 +252,12 @@ struct HowDwellWorksView: View {
         }
     }
 
-    /// Eagle's orb, ringed by the four places it shows up.
+    /// Eagle's avatar, ringed by the four places it shows up.
     private var eagleHero: some View {
         ZStack {
             Circle().fill(t.accent.opacity(0.08)).frame(width: 210, height: 210)
             Circle().fill(t.accent.opacity(0.14)).frame(width: 140, height: 140)
-            ZStack {
-                Circle().fill(.white).frame(width: 88, height: 88)
-                Image(systemName: "sparkle")
-                    .font(.system(size: 36))
-                    .foregroundStyle(t.accent)
-            }
-            .shadow(color: t.accent.opacity(0.35), radius: 24)
+            EagleAvatar(mood: .active, size: 88)
 
             eagleChip("Replies to your reflection").offset(x: -62, y: -126)
             eagleChip("Daily group pulse").offset(x: 92, y: -78)

@@ -41,9 +41,7 @@ struct MemoryDetailView: View {
                     if let response = reflection.companionResponse(in: viewerLanguage), !response.isEmpty {
                         VStack(alignment: .leading, spacing: Space.md) {
                             HStack(spacing: Space.sm) {
-                                Image(systemName: "sparkle")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(t.accent)
+                                EagleAvatar(size: 24)
                                 Text("Eagle wrote back")
                                     .font(.dwellSmallMd)
                                     .foregroundStyle(t.accent)

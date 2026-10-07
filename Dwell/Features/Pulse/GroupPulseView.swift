@@ -74,13 +74,7 @@ struct GroupPulseView: View {
                     .font(.dwellBodyMd)
                     .foregroundStyle(t.accent)
                 Spacer(minLength: Space.md)
-                ZStack {
-                    Circle().fill(t.ink)
-                    Image(systemName: "sparkle")
-                        .font(.system(size: 16))
-                        .foregroundStyle(t.onInk)
-                }
-                .frame(width: 40, height: 40)
+                EagleAvatar()
             }
 
             if let headline {

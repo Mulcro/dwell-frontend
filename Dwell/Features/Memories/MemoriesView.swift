@@ -232,13 +232,7 @@ struct MemoriesView: View {
 
                 ForEach(pastPulses) { pulse in
                     HStack(alignment: .top, spacing: Space.md) {
-                        ZStack {
-                            Circle().fill(t.accent.opacity(0.15))
-                            Image(systemName: "sparkle")
-                                .font(.system(size: 13))
-                                .foregroundStyle(t.accent)
-                        }
-                        .frame(width: 30, height: 30)
+                        EagleAvatar(size: 32)
 
                         VStack(alignment: .leading, spacing: 2) {
                             if let index = pulseDayIndex(pulse) {

@@ -451,6 +451,33 @@ final class SessionStore {
         continuations = all.filter { !dismissed.contains($0.groupId.uuidString) }
     }
 
+    // MARK: - Pulses seen
+
+    /// Pulses opened this session, so the avatar settles the moment one is
+    /// read. Earlier sessions' are in UserDefaults: it's a display hint for
+    /// this phone, not something to sync.
+    private var pulsesSeenNow: Set<String> = []
+
+    private var seenPulsesKey: String? {
+        me.map { "pulses.seen.\($0.id.uuidString)" }
+    }
+
+    /// Whether Eagle's avatar on the pulse card should be active.
+    func isPulseNew(_ pulse: AIInsight) -> Bool {
+        let id = pulse.id.uuidString
+        guard !pulsesSeenNow.contains(id), let key = seenPulsesKey else { return false }
+        return !(UserDefaults.standard.stringArray(forKey: key) ?? []).contains(id)
+    }
+
+    func markPulseSeen(_ pulse: AIInsight) {
+        let id = pulse.id.uuidString
+        pulsesSeenNow.insert(id)
+        guard let key = seenPulsesKey else { return }
+        // Only the recent ones matter; a pulse is a day old by the next.
+        let stored = UserDefaults.standard.stringArray(forKey: key) ?? []
+        UserDefaults.standard.set(Array((stored.filter { $0 != id } + [id]).suffix(30)), forKey: key)
+    }
+
     func dismissContinuation(_ invite: Continuation) {
         guard let key = dismissedKey else { return }
         UserDefaults.standard.set(Array(dismissedContinuations.union([invite.groupId.uuidString])),

@@ -67,6 +67,13 @@ protocol DwellAPI {
     /// those of joining by code.
     func joinGroup(groupId: UUID) async throws -> JoinGroupResponse
 
+    /// POST /nudge-group (KAN-63). Pushes the members who haven't posted on
+    /// the group's current day, never the sender, and returns how many it
+    /// reached; 0 when everyone has posted. One per sender per day: a second
+    /// call is a 409. A 502 means nobody could be reached, and doesn't use up
+    /// the day's nudge.
+    func nudgeGroup(groupId: UUID) async throws -> Int
+
     /// Pending "same crew, new plan" invitations, newest first.
     func myContinuations() async throws -> [Continuation]
 
